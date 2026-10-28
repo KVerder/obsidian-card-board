@@ -13,6 +13,7 @@ type alias MarkdownFile =
     , fileDate : Maybe String
     , frontMatterTags : TagList
     , bodyOffset : Int
+    , currentYear : Maybe Int
     , body : String
     }
 
@@ -23,15 +24,16 @@ decoder =
         |> TsDecode.andMap (TsDecode.field "filePath" TsDecode.string)
         |> TsDecode.andMap (TsDecode.field "fileDate" <| TsDecode.nullable TsDecode.string)
         |> TsDecode.andMap (TsDecode.field "fileContents" tagsAndContentsDecoder)
+        |> TsDecode.andMap (TsDecode.maybe (TsDecode.field "currentYear" TsDecode.int))
 
 
 
 -- INTERNAL
 
 
-markdownFileBuilder : String -> Maybe String -> ( TagList, Int, String ) -> MarkdownFile
-markdownFileBuilder filePath fileDate ( tags, bodyOffset, body ) =
-    MarkdownFile filePath fileDate tags bodyOffset body
+markdownFileBuilder : String -> Maybe String -> ( TagList, Int, String ) -> Maybe Int -> MarkdownFile
+markdownFileBuilder filePath fileDate ( tags, bodyOffset, body ) currentYear =
+    MarkdownFile filePath fileDate tags bodyOffset currentYear body
 
 
 tagsAndContentsDecoder : TsDecode.Decoder ( TagList, Int, String )

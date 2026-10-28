@@ -32,7 +32,7 @@ type Tag = {
 type Word =
   { tag : "Word", data : string }
 
-type Content = AutoComplete | Completion | Due | Tag | Word;
+type Content = AutoComplete | Completion | Due | Tag | Word | { tag: "AssignedTag"; data: string } | { tag: "EstimateTag"; data: number } | { tag: "UrgentTag" };
 
 export type TaskItemFields = {
   autoComplete : AutoCompleteTag;
@@ -112,6 +112,7 @@ export type CardBoardPluginSettingsPostV11 = {
       })[];
       filters : Filter[];
       filterPolarity : "Allow" | "Deny";
+      filterScope : "TopLevelOnly" | "SubTasksOnly" | "Both";
       showColumnTags : boolean;
       showFilteredTags : boolean;
       name : string
@@ -132,6 +133,7 @@ export type CardBoardPluginSettingsPostV11 = {
       taskCompletionFormat : "NoCompletion" | "ObsidianCardBoard" | "ObsidianDataview" | "ObsidianTasks";
       taskCompletionInLocalTime : boolean;
       taskCompletionShowUtcOffset : boolean;
+      people : { name: string; color: string }[];
     }
   };
   version : string

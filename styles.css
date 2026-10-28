@@ -779,3 +779,75 @@ h3.setting-heading-compact {
 .datepicker-other-month.datepicker-picked {
   color: white;
 }
+
+
+.card-board-add-card {
+  width: 100%;
+  margin-top: 0.75em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-board-dragging-card .card-board-column-with-beacons {
+  outline: 1px dashed var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+.card-board-card[draggable=true] {
+  cursor: grab;
+}
+
+button.card-board-card-action-area-button {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  height: auto;
+  color: inherit;
+}
+
+.card-board-assignee {
+  grid-column: 2;
+  justify-self: start;
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  border-radius: 1em;
+  box-shadow: none;
+  font-size: 0.8em;
+  padding: 0.1em 0.6em;
+  height: auto;
+}
+
+.card-board-card[data-assignee]:not([data-assignee=""]) .card-board-card-content-area {
+  border-radius: 0 3px 3px 0;
+}
+
+.card-board-card[data-assignee]:not([data-assignee=""]) .card-board-card-title {
+  color: inherit;
+}
+
+
+.card-board-controls, .card-board-person-tabs, .card-board-week-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex-wrap: wrap;
+}
+.card-board-controls { padding: 0.7em 1em; justify-content: space-between; }
+.card-board-person-tabs button[aria-selected=true] { background: var(--interactive-accent); color: var(--text-on-accent); }
+.card-board-smart-schedule { padding: 0 1em 1em; max-height: calc(100vh - 12em); overflow: auto; }
+.card-board-week-controls { justify-content: space-between; }
+.card-board-schedule-week { display: grid; grid-template-columns: repeat(5, minmax(17em, 1fr)); gap: 1em; overflow-x: auto; }
+.card-board-schedule-day { min-width: 0; padding: 0.7em; background: var(--background-secondary); border-radius: 4px; }
+.card-board-schedule-day h3 { font-size: 1em; }
+.card-board-schedule-day .card-board-column-list { max-height: none; overflow: visible; }
+.card-board-schedule-slot, .card-board-schedule-inner-list { list-style: none; padding: 0; margin: 0; }
+.card-board-allocation-summary { font-size: 0.8em; margin-bottom: 0.4em; }
+.card-board-schedule-slot.is-late .card-board-card-content-area { background-image: linear-gradient(rgba(255,60,60,0.28), rgba(255,60,60,0.28)); }
+.card-board-schedule-slot.is-late { border-radius: 4px; outline: 2px solid var(--text-error); }
+.card-board-schedule-rules { color: var(--text-muted); font-size: 0.85em; }
+.card-board-unscheduled { margin-top: 1.5em; }
+.card-board-unscheduled > ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(17em, 1fr)); max-height: none; }
+.card-board-task-meta { grid-column: 2; display: flex; gap: 0.5em; font-size: 0.8em; }
+.card-board-urgent { font-weight: bold; }

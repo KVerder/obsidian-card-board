@@ -583,6 +583,7 @@ basicMarkdown path body =
     { filePath = path
     , fileDate = Nothing
     , frontMatterTags = TagList.empty
+    , currentYear = Nothing
     , bodyOffset = 0
     , body = body
     }

@@ -112,6 +112,7 @@ export default class CardBoardPlugin extends Plugin {
         data: {
           filePath:     file.path,
           fileDate:     fileDate,
+          currentYear: new Date().getFullYear(),
           fileContents: fileContents
         }
       });
@@ -306,7 +307,8 @@ export default class CardBoardPlugin extends Plugin {
           data: {
             filePath: file.path,
             fileDate: fileDate,
-            fileContents: fileContents
+            currentYear: new Date().getFullYear(),
+          fileContents: fileContents
           }
         });
       }
@@ -337,7 +339,8 @@ export default class CardBoardPlugin extends Plugin {
           data: {
             filePath: file.path,
             fileDate: fileDate,
-            fileContents: fileContents
+            currentYear: new Date().getFullYear(),
+          fileContents: fileContents
           }
         });
       }

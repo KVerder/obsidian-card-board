@@ -377,6 +377,7 @@ exampleGlobalSettings =
     , taskCompletionFormat = GlobalSettings.NoCompletion
     , taskCompletionInLocalTime = False
     , taskCompletionShowUtcOffset = False
+    , people = []
     }
 
 

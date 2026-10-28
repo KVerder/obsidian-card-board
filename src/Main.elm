@@ -281,12 +281,12 @@ update msg model =
 
         ( TaskItemsAdded taskList, _ ) ->
             ( mapSession (Session.addTaskList taskList) model
-            , cmdForTaskRedraws taskList (toSession model)
+            , cmdForTaskRedraws taskList (Session.addTaskList taskList (toSession model))
             )
 
         ( TaskItemsDeleted taskItems, _ ) ->
             ( mapSession (Session.removeTaskItems taskItems) model
-            , Cmd.none
+            , cmdForTaskRedraws TaskList.empty (Session.removeTaskItems taskItems (toSession model))
             )
 
         ( TaskItemsDeletedAndAdded ( deleteIds, toAdd ), _ ) ->
@@ -298,12 +298,12 @@ update msg model =
             ( model
                 |> mapSession (Session.removeTaskItems deleteIds)
                 |> mapSession (Session.addTaskList addList)
-            , cmdForTaskRedraws addList (toSession model)
+            , cmdForTaskRedraws addList (toSession model |> Session.removeTaskItems deleteIds |> Session.addTaskList addList)
             )
 
         ( TaskItemsRefreshed taskList, _ ) ->
             ( mapSession (Session.replaceTaskList taskList) model
-            , Cmd.none
+            , cmdForTaskRedraws taskList (Session.replaceTaskList taskList (toSession model))
             )
 
         ( TaskItemsUpdated updateDetails, _ ) ->
@@ -315,7 +315,7 @@ update msg model =
                         |> TaskList.fromList
             in
             ( mapSession (Session.replaceTaskItems updateDetails) model
-            , cmdForTaskRedraws tasksToRedraw (toSession model)
+            , cmdForTaskRedraws tasksToRedraw (Session.replaceTaskItems updateDetails (toSession model))
             )
 
 
@@ -329,10 +329,14 @@ cmdForDateChange session =
 
         cards : List Card
         cards =
-            Session.taskList session
-                |> TaskList.filter TaskItem.isDated
-                |> Boards.init (Session.uniqueId session) (Session.boardConfigs session)
-                |> Boards.cards (Session.ignoreFileNameDates session) today
+            if (Session.viewOptions session).smart then
+                Session.cards session
+
+            else
+                Session.taskList session
+                    |> TaskList.filter TaskItem.isDated
+                    |> Boards.init (Session.uniqueId session) (Session.boardConfigs session)
+                    |> Boards.cards (Session.ignoreFileNameDates session) today
     in
     if List.isEmpty cards then
         Cmd.none
@@ -354,9 +358,13 @@ cmdForTaskRedraws taskList session =
 
         cards : List Card
         cards =
-            taskList
-                |> Boards.init (Session.uniqueId session) (Session.boardConfigs session)
-                |> Boards.cards (Session.ignoreFileNameDates session) today
+            if (Session.viewOptions session).smart then
+                Session.cards session
+
+            else
+                taskList
+                    |> Boards.init (Session.uniqueId session) (Session.boardConfigs session)
+                    |> Boards.cards (Session.ignoreFileNameDates session) today
     in
     if List.isEmpty cards then
         Cmd.none

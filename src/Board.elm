@@ -3,6 +3,7 @@ module Board exposing
     , columns
     , id
     , init
+    , tasks
     )
 
 import BoardConfig exposing (BoardConfig)
@@ -149,3 +150,8 @@ tagsToHide boardConfig =
                     |> List.map Filter.value
     in
     columnTagsToHide ++ filterTagsToHide
+
+
+tasks : Bool -> Board -> TaskList
+tasks ignoreDates (Board _ config taskList) =
+    taskList |> filterTaskList config |> configureDueDates ignoreDates

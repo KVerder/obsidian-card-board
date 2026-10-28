@@ -16,7 +16,8 @@
       "es6",
       "scripthost",
       "es2020"
-    ]
+    ],
+    "allowUmdGlobalAccess": true
   },
   "include": [
     "**/*.ts"

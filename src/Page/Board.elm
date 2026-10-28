@@ -23,7 +23,7 @@ import DragAndDrop.Rect as Rect
 import FeatherIcons
 import Html exposing (Attribute, Html)
 import Html.Attributes exposing (attribute, checked, class, disabled, hidden, id, style, tabindex, type_)
-import Html.Events exposing (onClick)
+import Html.Events exposing (on, onClick, preventDefaultOn, stopPropagationOn)
 import Html.Events.Extra.Mouse as Mouse exposing (onContextMenu, onDown)
 import Html.Keyed
 import Html.Lazy
@@ -32,8 +32,10 @@ import Json.Decode as JD
 import Json.Encode as JE
 import List.Extra as LE
 import Page.Helper.DatePicker as DatePicker exposing (DatePicker)
+import Person
 import SafeZipper
 import Session exposing (Session, TaskCompletionSettings)
+import SmartSchedule
 import TagList
 import TaskItem exposing (TaskItem, TaskItemFields)
 import TaskList
@@ -50,6 +52,7 @@ import UpdatedTaskItem exposing (UpdatedTaskItem)
 type Model
     = DeletingCard String String Session
     | EditingCardDueDate DatePicker TaskItem Session
+    | DraggingCard String Session
     | ViewingBoard Session
 
 
@@ -114,6 +117,9 @@ editCardDueDateRequested cardId model =
 mapSession : (Session -> Session) -> Model -> Model
 mapSession fn model =
     case model of
+        DraggingCard taskId session ->
+            DraggingCard taskId <| fn session
+
         ViewingBoard session ->
             ViewingBoard <| fn session
 
@@ -127,6 +133,9 @@ mapSession fn model =
 toSession : Model -> Session
 toSession model =
     case model of
+        DraggingCard _ session ->
+            session
+
         ViewingBoard session ->
             session
 
@@ -142,7 +151,17 @@ toSession model =
 
 
 type Msg
-    = CardMouseDown
+    = CardDragStarted String
+    | CardDragEnded
+    | CardDropped Int
+    | AddCardClicked Int
+    | MoveCardRequested String
+    | AssignCardRequested String
+    | EditPlanningRequested String
+    | PersonSelected (Maybe String)
+    | SmartScheduleToggled
+    | ScheduleWeekChanged Int
+    | CardMouseDown
     | CardRightMouseDown String Mouse.Event
     | ColumnMouseDown ( String, DragTracker.ClientData )
     | DatePickerMsg DatePicker.Msg
@@ -174,6 +193,69 @@ columnDragType =
 update : Msg -> Model -> ( Model, Cmd Msg, Session.Msg )
 update msg model =
     case msg of
+        CardDragStarted taskId ->
+            ( DraggingCard taskId (toSession model), Cmd.none, Session.NoOp )
+
+        CardDragEnded ->
+            case model of
+                DraggingCard _ session ->
+                    ( ViewingBoard session, Cmd.none, Session.NoOp )
+
+                _ ->
+                    ( model, Cmd.none, Session.NoOp )
+
+        CardDropped columnIndex ->
+            case model of
+                DraggingCard taskId session ->
+                    ( ViewingBoard session
+                    , Session.taskFromId taskId session
+                        |> Maybe.map (\taskItem -> InteropPorts.moveCard { boardIndex = boardIndexForSession session, columnIndex = columnIndex, taskItem = taskItem })
+                        |> Maybe.withDefault Cmd.none
+                    , Session.NoOp
+                    )
+
+                _ ->
+                    ( model, Cmd.none, Session.NoOp )
+
+        AddCardClicked columnIndex ->
+            ( model
+            , InteropPorts.createCard { boardIndex = boardIndexForSession (toSession model), columnIndex = columnIndex }
+            , Session.NoOp
+            )
+
+        PersonSelected person ->
+            redrawSession (Session.setPersonFilter person) model
+
+        SmartScheduleToggled ->
+            redrawSession Session.toggleSmartSchedule model
+
+        ScheduleWeekChanged delta ->
+            redrawSession (Session.changeScheduleWeek delta) model
+
+        EditPlanningRequested taskId ->
+            ( model
+            , Session.taskFromId taskId (toSession model)
+                |> Maybe.map (\taskItem -> InteropPorts.editPlanning { boardIndex = boardIndexForSession (toSession model), taskItem = taskItem })
+                |> Maybe.withDefault Cmd.none
+            , Session.NoOp
+            )
+
+        AssignCardRequested taskId ->
+            ( model
+            , Session.taskFromId taskId (toSession model)
+                |> Maybe.map (\taskItem -> InteropPorts.assignCard { boardIndex = boardIndexForSession (toSession model), taskItem = taskItem })
+                |> Maybe.withDefault Cmd.none
+            , Session.NoOp
+            )
+
+        MoveCardRequested taskId ->
+            ( model
+            , Session.taskFromId taskId (toSession model)
+                |> Maybe.map (\taskItem -> InteropPorts.showMoveCardMenu { boardIndex = boardIndexForSession (toSession model), taskItem = taskItem })
+                |> Maybe.withDefault Cmd.none
+            , Session.NoOp
+            )
+
         CardMouseDown ->
             ( model, Cmd.none, Session.NoOp )
 
@@ -374,6 +456,10 @@ update msg model =
 view : Model -> Html Msg
 view model =
     case model of
+        DraggingCard _ session ->
+            Html.div [ class "card-board-dragging-card" ]
+                [ boardsView session ]
+
         ViewingBoard session ->
             Html.div []
                 [ boardsView session ]
@@ -467,7 +553,7 @@ modalEditCardDueDate datePicker taskItem session =
                         [ Html.div [ class "setting-item-name" ]
                             [ Html.text "Due date" ]
                         , Html.div [ class "setting-item-description" ]
-                            [ Html.text "Leave blank to clear the due date." ]
+                            [ Html.text "Use YYYY-MM-DD, due dd-mm-yy, or due dd-mm. Leave blank to clear the due date." ]
                         ]
                     , Html.div [ class "setting-item-control" ]
                         [ DatePicker.view datePicker
@@ -592,7 +678,7 @@ boardsView session =
         let
             boards : Boards
             boards =
-                Boards.init (Session.uniqueId session) (Session.boardConfigs session) (Session.taskList session)
+                Boards.init (Session.uniqueId session) (Session.boardConfigs session) (Session.visibleTaskList session)
 
             currentBoardIndex : Maybe Int
             currentBoardIndex =
@@ -621,9 +707,11 @@ boardsView session =
                 DragTracker.dragType dragTracker
         in
         Html.div
-            [ attribute "dir" (TextDirection.toString <| Session.textDirection session)
-            , attributeIf isDragging (style "cursor" "grabbing")
-            ]
+            ([ attribute "dir" (TextDirection.toString <| Session.textDirection session)
+             , attributeIf isDragging (style "cursor" "grabbing")
+             ]
+                ++ Person.colorAttributes (Session.globalSettings session).people
+            )
             [ Html.div [ class "workspace-tab-header-container" ]
                 [ Html.div
                     [ class "sidebar-toggle-button"
@@ -650,16 +738,21 @@ boardsView session =
                     [ class "card-board-tab-header-spacer" ]
                     []
                 ]
-            , Html.Keyed.node "div"
-                [ class "card-board-boards"
-                , class "card-board-column-container"
-                ]
-                (Boards.boardZipper boards
-                    |> SafeZipper.mapSelectedAndRest
-                        (keyedSelectedBoardView ignoreFileNameDates today dragTracker)
-                        (keyedBoardView ignoreFileNameDates today)
-                    |> SafeZipper.toList
-                )
+            , boardControls session
+            , if (Session.viewOptions session).smart then
+                smartScheduleView session
+
+              else
+                Html.Keyed.node "div"
+                    [ class "card-board-boards"
+                    , class "card-board-column-container"
+                    ]
+                    (Boards.boardZipper boards
+                        |> SafeZipper.mapSelectedAndRest
+                            (keyedSelectedBoardView ignoreFileNameDates today dragTracker)
+                            (keyedBoardView ignoreFileNameDates today)
+                        |> SafeZipper.toList
+                    )
             ]
 
 
@@ -906,7 +999,11 @@ columnView draggedId boardId columnIndex today column =
         name =
             Column.name column
     in
-    Html.div [ class "card-board-column-with-beacons" ]
+    Html.div
+        [ class "card-board-column-with-beacons"
+        , attributeIf (canMoveTo column) (preventDefaultOn "dragover" (JD.succeed ( CardMouseDown, True )))
+        , attributeIf (canMoveTo column) (preventDefaultOn "drop" (JD.succeed ( CardDropped columnIndex, True )))
+        ]
         [ beacon columnBeaconType (BeaconPosition.Before name)
         , Html.div
             [ id domId
@@ -936,6 +1033,14 @@ columnView draggedId boardId columnIndex today column =
                 ]
             , Html.Keyed.ul [ class "card-board-column-list" ]
                 (List.map (cardView today) (Column.cards boardId column))
+            , Html.button
+                [ class "card-board-add-card"
+                , onClick (AddCardClicked columnIndex)
+                , stopPropagationOn "mousedown" (JD.succeed ( CardMouseDown, True ))
+                , attribute "aria-label" ("Add card to " ++ name)
+                ]
+                [ Html.text "+ Add card" ]
+                |> when (canMoveTo column && not (Column.isCollapsed column))
             ]
         , beacon columnBeaconType (BeaconPosition.After name)
         ]
@@ -981,13 +1086,28 @@ cardView today card =
     in
     Html.li
         [ class "card-board-card cm-s-obsidian"
+        , attribute "data-assignee" (TaskItem.assignee taskItem |> Maybe.withDefault "")
         , attributeIf (not <| String.isEmpty dataTags) (attribute "data-tags" dataTags)
-        , nonPropogatingOnDown <| always CardMouseDown
+        , stopPropagationOn "mousedown" (JD.succeed ( CardMouseDown, True ))
+        , attribute "draggable" "true"
+        , on "dragstart" (JD.succeed (CardDragStarted taskItemId))
+        , on "dragend" (JD.succeed CardDragEnded)
         , onContextMenu <| CardRightMouseDown (Card.id card)
         ]
         [ Html.div [ class ("card-board-card-highlight-area " ++ highlightAreaClass) ]
             []
-        , Html.div [ class "card-board-card-content-area" ]
+        , Html.div
+            ([ class "card-board-card-content-area" ]
+                ++ (TaskItem.assignee taskItem
+                        |> Maybe.map
+                            (\name ->
+                                [ style "background-color" ("var(" ++ Person.colorKey name ++ ", " ++ Person.defaultColor name ++ ")")
+                                , style "color" ("var(" ++ Person.colorKey name ++ "-foreground, #17212b)")
+                                ]
+                            )
+                        |> Maybe.withDefault []
+                   )
+            )
             [ Html.input
                 [ type_ "checkbox"
                 , class "task-list-item-checkbox"
@@ -997,6 +1117,17 @@ cardView today card =
                 []
             , Html.div [ class "card-board-card-title", id cardId ]
                 []
+            , TaskItem.assignee taskItem
+                |> Maybe.map (\name -> Html.button [ class "card-board-assignee", onClick (AssignCardRequested taskItemId), attribute "title" "Change assignee or colour" ] [ Html.text name ])
+                |> Maybe.withDefault (Html.text "")
+            , Html.div [ class "card-board-task-meta" ]
+                [ TaskItem.estimateHours taskItem |> Maybe.map (\hours -> Html.span [] [ Html.text (String.fromFloat hours ++ "h estimated") ]) |> Maybe.withDefault (Html.text "")
+                , if TaskItem.isUrgent taskItem then
+                    Html.strong [ class "card-board-urgent" ] [ Html.text "Urgent" ]
+
+                  else
+                    Html.text ""
+                ]
             , cardTagsView (Card.tagsId card)
                 |> when (TaskItem.hasTags taskItem)
             , subtasksView (Card.descendantTasks card)
@@ -1058,7 +1189,36 @@ taskDueDate today dueDate =
 cardActionButtons : String -> String -> String -> Html Msg
 cardActionButtons title taskItemId editButtonId =
     Html.div [ class "card-board-card-action-area-buttons" ]
-        [ Html.div
+        [ Html.button
+            [ class "card-board-card-action-area-button"
+            , attribute "aria-label" "Edit estimate and urgency"
+            , attribute "title" "Edit estimate and urgency"
+            , onClick (EditPlanningRequested taskItemId)
+            ]
+            [ FeatherIcons.clock |> FeatherIcons.withSize 1 |> FeatherIcons.withSizeUnit "em" |> FeatherIcons.toHtml [] ]
+        , Html.button
+            [ class "card-board-card-action-area-button"
+            , attribute "aria-label" "Assign person and colour"
+            , attribute "title" "Assign person and colour"
+            , onClick (AssignCardRequested taskItemId)
+            ]
+            [ FeatherIcons.user
+                |> FeatherIcons.withSize 1
+                |> FeatherIcons.withSizeUnit "em"
+                |> FeatherIcons.toHtml []
+            ]
+        , Html.button
+            [ class "card-board-card-action-area-button"
+            , attribute "aria-label" "Move card to column"
+            , attribute "title" "Move card to column"
+            , onClick (MoveCardRequested taskItemId)
+            ]
+            [ FeatherIcons.move
+                |> FeatherIcons.withSize 1
+                |> FeatherIcons.withSizeUnit "em"
+                |> FeatherIcons.toHtml []
+            ]
+        , Html.div
             [ class "card-board-card-action-area-button"
             , onClickWithPreventDefault <| TaskItemEditClicked taskItemId
             , id editButtonId
@@ -1294,3 +1454,158 @@ when shouldRender html =
 
     else
         empty
+
+
+boardIndexForSession : Session -> Int
+boardIndexForSession session =
+    Session.boardConfigs session |> SafeZipper.currentIndex |> Maybe.withDefault 0
+
+
+canMoveTo : Column -> Bool
+canMoveTo column =
+    case column of
+        Column.NamedTag _ ->
+            True
+
+        Column.Untagged _ ->
+            True
+
+        _ ->
+            False
+
+
+redrawSession : (Session -> Session) -> Model -> ( Model, Cmd Msg, Session.Msg )
+redrawSession fn model =
+    let
+        updated =
+            mapSession fn model
+
+        cards =
+            Session.cards (toSession updated)
+    in
+    ( updated, Cmd.batch [ InteropPorts.displayTaskMarkdown cards, InteropPorts.addHoverToCardEditButtons cards ], Session.NoOp )
+
+
+boardControls : Session -> Html Msg
+boardControls session =
+    let
+        options =
+            Session.viewOptions session
+
+        people =
+            Session.taskList session |> TaskList.topLevelTasks |> List.filterMap TaskItem.assignee |> LE.uniqueBy String.toLower |> List.sortBy String.toLower
+
+        tab name person =
+            Html.button
+                [ onClick (PersonSelected person)
+                , attribute "role" "tab"
+                , attribute "aria-selected"
+                    (if options.person == person then
+                        "true"
+
+                     else
+                        "false"
+                    )
+                ]
+                [ Html.text name ]
+    in
+    Html.div [ class "card-board-controls" ]
+        [ Html.div [ class "card-board-person-tabs", attribute "role" "tablist", attribute "aria-label" "Filter by person" ]
+            (tab "All people" Nothing :: List.map (\name -> tab name (Just name)) people)
+        , Html.button
+            [ onClick SmartScheduleToggled
+            , attribute "aria-pressed"
+                (if options.smart then
+                    "true"
+
+                 else
+                    "false"
+                )
+            ]
+            [ Html.text
+                (if options.smart then
+                    "Kanban view"
+
+                 else
+                    "Smart schedule view"
+                )
+            ]
+        ]
+
+
+smartScheduleView : Session -> Html Msg
+smartScheduleView session =
+    let
+        today =
+            Session.timeWithZone session |> TimeWithZone.toDate
+
+        options =
+            Session.viewOptions session
+
+        schedule =
+            Session.schedulePlan session
+
+        boardId =
+            Session.scheduleBoardId session
+
+        slices =
+            SmartSchedule.allocations today options.weekOffset schedule
+
+        days =
+            SmartSchedule.weekDays today options.weekOffset
+
+        allocationView allocation =
+            Html.li
+                [ class
+                    ("card-board-schedule-slot"
+                        ++ (if allocation.late then
+                                " is-late"
+
+                            else
+                                ""
+                           )
+                    )
+                ]
+                [ Html.div [ class "card-board-allocation-summary" ]
+                    [ Html.text (String.fromFloat (toFloat (round (allocation.hours * 100)) / 100) ++ "h · " ++ Maybe.withDefault "" (TaskItem.assignee allocation.task))
+                    , if allocation.late then
+                        Html.strong [] [ Html.text " · Scheduled after deadline" ]
+
+                      else
+                        Html.text ""
+                    ]
+                , Html.ul [ class "card-board-schedule-inner-list" ] [ SmartSchedule.allocationCard boardId allocation |> cardView today |> Tuple.second ]
+                ]
+
+        dayView day =
+            Html.section [ class "card-board-schedule-day", attribute "aria-label" (Date.toIsoString day) ]
+                [ Html.h3 [] [ Html.text (Date.format "EEE dd MMM" day) ]
+                , Html.ul [ class "card-board-column-list" ] (slices |> List.filter (\allocation -> allocation.date == day) |> List.map allocationView)
+                , if Date.toRataDie day < Date.toRataDie today then
+                    Html.p [] [ Html.text "Past day" ]
+
+                  else
+                    Html.text ""
+                ]
+
+        pending title prefix tasks =
+            if List.isEmpty tasks then
+                Html.text ""
+
+            else
+                Html.section [ class "card-board-unscheduled" ]
+                    [ Html.h3 [] [ Html.text (title ++ " (" ++ String.fromInt (List.length tasks) ++ ")") ]
+                    , Html.ul [ class "card-board-column-list" ] (List.map (Card.fromTaskItem (boardId ++ prefix) [] >> cardView today >> Tuple.second) tasks)
+                    ]
+    in
+    Html.div [ class "card-board-smart-schedule" ]
+        [ Html.div [ class "card-board-week-controls" ]
+            [ Html.button [ onClick (ScheduleWeekChanged -1), disabled (options.weekOffset == 0) ] [ Html.text "Previous week" ]
+            , Html.span [] [ Html.text ("Week of " ++ (List.head days |> Maybe.map Date.toIsoString |> Maybe.withDefault "") ++ " · 8h/person/day") ]
+            , Html.button [ onClick (ScheduleWeekChanged 1) ] [ Html.text "Next week" ]
+            ]
+        , Html.p [ class "card-board-schedule-rules" ] [ Html.text "Urgent first, then deadline, then shorter tasks. Undated tasks follow dated tasks within each urgency group. Starts today; split work continues across weekdays." ]
+        , Html.div [ class "card-board-schedule-week" ] (List.map dayView days)
+        , pending "Needs estimate" ":needs-estimate" schedule.needsEstimate
+        , pending "Needs assignee" ":needs-assignee" schedule.needsAssignee
+        ]

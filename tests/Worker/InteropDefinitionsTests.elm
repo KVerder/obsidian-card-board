@@ -128,6 +128,7 @@ toElmTests =
                                 { filePath = "a path"
                                 , fileDate = Just "a date"
                                 , frontMatterTags = TagList.fromList [ "a_tag" ]
+                                , currentYear = Nothing
                                 , bodyOffset = 3
                                 , body = "some contents"
                                 }
@@ -149,6 +150,7 @@ toElmTests =
                                 { filePath = "a path"
                                 , fileDate = Just "a date"
                                 , frontMatterTags = TagList.fromList [ "a_tag" ]
+                                , currentYear = Nothing
                                 , bodyOffset = 3
                                 , body = "some contents"
                                 }

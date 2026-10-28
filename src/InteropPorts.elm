@@ -1,14 +1,19 @@
 port module InteropPorts exposing
     ( addHoverToCardEditButtons
+    , assignCard
     , closeView
+    , createCard
     , decodeFlags
     , deleteTask
     , displayTaskMarkdown
+    , editPlanning
     , elmInitialized
+    , moveCard
     , openTaskSourceFile
     , requestFilterCandidates
     , rewriteTasks
     , showCardContextMenu
+    , showMoveCardMenu
     , toElm
     , trackDraggable
     , updateSettings
@@ -156,3 +161,36 @@ port interopFromElm : Json.Encode.Value -> Cmd msg
 
 
 port interopToElm : (Json.Decode.Value -> msg) -> Sub msg
+
+
+createCard : InteropDefinitions.BoardLocation -> Cmd msg
+createCard info =
+    InteropDefinitions.CreateCard info
+        |> TsEncode.encoder InteropDefinitions.interop.fromElm
+        |> interopFromElm
+
+
+moveCard : InteropDefinitions.MoveLocation -> Cmd msg
+moveCard info =
+    InteropDefinitions.MoveCard info
+        |> TsEncode.encoder InteropDefinitions.interop.fromElm
+        |> interopFromElm
+
+
+showMoveCardMenu : InteropDefinitions.CardLocation -> Cmd msg
+showMoveCardMenu info =
+    InteropDefinitions.ShowMoveCardMenu info
+        |> TsEncode.encoder InteropDefinitions.interop.fromElm
+        |> interopFromElm
+
+
+assignCard : InteropDefinitions.CardLocation -> Cmd msg
+assignCard info =
+    InteropDefinitions.AssignCard info
+        |> TsEncode.encoder InteropDefinitions.interop.fromElm
+        |> interopFromElm
+
+
+editPlanning : InteropDefinitions.CardLocation -> Cmd msg
+editPlanning info =
+    InteropDefinitions.EditPlanning info |> TsEncode.encoder InteropDefinitions.interop.fromElm |> interopFromElm

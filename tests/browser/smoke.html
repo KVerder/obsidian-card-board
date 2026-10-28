@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CardBoard browser verification</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  :root { --background-primary:#fff; --background-secondary:#f0f2f5; --background-modifier-border:#ccd2da;
+    --text-normal:#202733; --text-muted:#667085; --text-error:#bd2435; --text-success:#19834a;
+    --text-warning:#db9600; --text-accent:#db9600; --interactive-accent:#6657c8; --text-on-accent:white; --font-text-size:15px; --font-text:system-ui; }
+  body { margin:0; font:15px system-ui; color:var(--text-normal); }
+  button { font:inherit; cursor:pointer; border:1px solid #ccd2da; border-radius:4px; padding:5px 8px; }
+  .card-board-view { height:100vh; }
+  .workspace-tab-header-container, .workspace-tab-header-container-inner { display:flex; }
+  .workspace-tab-header { padding:12px; }
+  .modal-container { position:fixed; inset:0; display:grid; place-items:center; background:#0004; }
+  .modal { background:white; padding:24px; border-radius:8px; min-width:420px; }
+  .setting-item { display:flex; justify-content:space-between; gap:20px; padding:12px 0; }
+  .modal-button-container { display:flex; gap:10px; }
+</style>
+<div id="app"></div>
+<script src="/elm-stuff/smoke-main.js"></script>
+<script src="/elm-stuff/smoke-worker.js"></script>
+<script>
+  window.outbound = [];
+  const completion = {taskCompletionTracking:false,taskCompletionUseEmojiShorthand:false,taskCompletionText:'completion'};
+  const settings = {version:'0.13.0',data:{globalSettings:{defaultColumnNames:{today:'',tomorrow:'',future:'',undated:'',otherTags:'',untagged:'',completed:''},filters:[],firstDayOfWeek:'Mon',ignoreFileNameDates:false,taskCompletionFormat:'ObsidianCardBoard',taskCompletionInLocalTime:true,taskCompletionShowUtcOffset:false,people:[{name:'Alex',color:'#c3dcfa'},{name:'Sam',color:'#d0eed8'}]},boardConfigs:[{name:'Team',columns:[{tag:'namedTag',data:{name:'Todo',tag:'status/todo',collapsed:false}},{tag:'namedTag',data:{name:'Doing',tag:'status/doing',collapsed:false}},{tag:'untagged',data:{name:'Untagged',collapsed:false}}],filters:[],filterPolarity:'Allow',filterScope:'Both',showColumnTags:true,showFilteredTags:true}]}};
+  const app = Elm.Main.init({node:document.getElementById('app'),flags:{dataviewTaskCompletion:completion,firstDayOfWeek:1,now:Date.now(),rightToLeft:false,settings,uniqueId:'smoke',zone:0}});
+  app.ports.interopFromElm.subscribe(message => {
+    outbound.push(message);
+    if(message.tag === 'updateSettings') setTimeout(()=>app.ports.interopToElm.send({tag:'settingsUpdated',data:message.data}),0);
+    if(message.tag === 'displayTaskMarkdown') requestAnimationFrame(()=>message.data.forEach(card=>card.taskMarkdown.forEach(item=>{
+      const el=document.getElementById(item.id); if(el)el.textContent=item.markdown;
+    })));
+    if(message.tag === 'showCardContextMenu') app.ports.interopToElm.send({tag:'editCardDueDate',data:message.data.cardId});
+  });
+  const worker = Elm.Worker.init({flags:{dataviewTaskCompletion:completion}});
+  worker.ports.interopFromElm.subscribe(message => {
+    const tags={tasksAdded:'taskItemsAdded',tasksDeleted:'taskItemsDeleted',tasksUpdated:'taskItemsUpdated',tasksDeletedAndAdded:'taskItemsDeletedAndAdded',allTaskItems:'taskItemsRefreshed'};
+    if(tags[message.tag])app.ports.interopToElm.send({tag:tags[message.tag],data:message.data});
+  });
+  const markdown = '- [ ] Urgent long @assigned(Alex) @estimate(10h) @urgent due 28-10-26 #status/todo\n- [ ] Quick report @assigned(Alex) @estimate(1h) due 30-10-26 #status/todo\n- [ ] Sam job @assigned(Sam) @estimate(8h) due 30-10-26 #status/doing\n- [ ] Estimate me @assigned(Alex) #status/todo\n- [ ] Assign me @estimate(2h) #status/todo\n';
+  worker.ports.interopToElm.send({tag:'fileAdded',data:{filePath:'Team.md',fileDate:null,currentYear:2026,fileContents:markdown}});
+  worker.ports.interopToElm.send({tag:'allMarkdownLoaded',data:{}});
+  worker.ports.interopToElm.send({tag:'viewInitialized'});
+  app.ports.interopToElm.send({tag:'activeStateUpdated',data:true});
+  window.testApp=app;
+  window.testSettings=settings;
+  window.testWorker=worker;
+  window.testMarkdown=markdown;
+</script>

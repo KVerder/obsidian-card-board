@@ -32,6 +32,7 @@ default =
                         , taskCompletionFormat = GlobalSettings.ObsidianCardBoard
                         , taskCompletionInLocalTime = True
                         , taskCompletionShowUtcOffset = True
+                        , people = []
                         }
         ]
 
@@ -56,6 +57,7 @@ encodeDecode =
                 , taskCompletionFormat = GlobalSettings.ObsidianCardBoard
                 , taskCompletionInLocalTime = False
                 , taskCompletionShowUtcOffset = False
+                , people = []
                 }
                     |> TsEncode.runExample GlobalSettings.encoder
                     |> .output
@@ -78,6 +80,7 @@ encodeDecode =
                             , taskCompletionFormat = GlobalSettings.ObsidianCardBoard
                             , taskCompletionInLocalTime = False
                             , taskCompletionShowUtcOffset = False
+                            , people = []
                             }
                         )
         ]
@@ -95,6 +98,7 @@ taskCompletionSettings =
                 , taskCompletionFormat = GlobalSettings.ObsidianDataview
                 , taskCompletionInLocalTime = True
                 , taskCompletionShowUtcOffset = False
+                , people = []
                 }
                     |> GlobalSettings.taskCompletionSettings
                     |> Expect.equal

@@ -1,10 +1,10 @@
 {
-	"id": "card-board",
-	"name": "CardBoard",
-	"description": "Display markdown tasks on kanban style boards.",
-	"version": "0.7.9",
-	"author": "roovo",
-	"authorUrl": "https://github.com/roovo",
-	"minAppVersion": "0.12.13",
-	"isDesktopOnly": false
+  "id": "card-board",
+  "name": "CardBoard",
+  "description": "Markdown task boards with people, estimates and smart weekly scheduling.",
+  "version": "0.8.0",
+  "author": "roovo",
+  "authorUrl": "https://github.com/roovo",
+  "minAppVersion": "1.5.7",
+  "isDesktopOnly": false
 }

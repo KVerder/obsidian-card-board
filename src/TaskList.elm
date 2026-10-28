@@ -67,6 +67,7 @@ fromMarkdown : DataviewTaskCompletion -> MarkdownFile -> TaskList
 fromMarkdown dataviewTaskCompletion markdownFile =
     P.run
         (parser
+            markdownFile.currentYear
             dataviewTaskCompletion
             markdownFile.filePath
             markdownFile.fileDate
@@ -222,17 +223,17 @@ topLevelTasks (TaskList taskList) =
 -- PRIVATE
 
 
-parser : DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser TaskList
-parser dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset =
-    P.loop [] (taskItemsHelp dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset)
+parser : Maybe Int -> DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser TaskList
+parser currentYear dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset =
+    P.loop [] (taskItemsHelp currentYear dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset)
         |> P.map (\ts -> TaskList ts)
 
 
-taskItemsHelp : DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> List TaskItem -> Parser (P.Step (List TaskItem) (List TaskItem))
-taskItemsHelp dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset revTaskItems =
+taskItemsHelp : Maybe Int -> DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> List TaskItem -> Parser (P.Step (List TaskItem) (List TaskItem))
+taskItemsHelp currentYear dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset revTaskItems =
     P.oneOf
         [ P.backtrackable
-            (TaskItem.parser dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset
+            (TaskItem.parserWithYear currentYear dataviewTaskCompletion filePath fileDate frontMatterTags bodyOffset
                 |> P.map (\taskItem -> P.Loop (taskItem :: revTaskItems))
             )
         , anyLineParser

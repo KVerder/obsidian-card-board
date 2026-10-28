@@ -34,6 +34,7 @@ import Form.NewColumn as NewColumnForm exposing (NewColumnForm)
 import Form.SafeDecoder as SD
 import GlobalSettings exposing (GlobalSettings)
 import Maybe.Extra as ME
+import Person exposing (Person)
 import SafeZipper exposing (SafeZipper)
 import Settings exposing (Settings)
 import Time
@@ -54,6 +55,7 @@ type alias SettingsForm =
     , taskCompletionFormat : String
     , taskCompletionInLocalTime : Bool
     , taskCompletionShowUtcOffset : Bool
+    , people : List Person
     , today : String
     , tomorrow : String
     , undated : String
@@ -132,6 +134,7 @@ init settings =
     , taskCompletionFormat = taskCompletionFormat_
     , taskCompletionInLocalTime = globalSettings_.taskCompletionInLocalTime
     , taskCompletionShowUtcOffset = globalSettings_.taskCompletionShowUtcOffset
+    , people = globalSettings_.people
     , today = Maybe.withDefault "" defaultColumnNames_.today
     , tomorrow = Maybe.withDefault "" defaultColumnNames_.tomorrow
     , undated = Maybe.withDefault "" defaultColumnNames_.undated
@@ -145,6 +148,20 @@ init settings =
 
 safeDecoder : SD.Decoder SettingsForm Settings
 safeDecoder =
+    SD.map2
+        (\people settings ->
+            let
+                global =
+                    settings.globalSettings
+            in
+            { settings | globalSettings = { global | people = people } }
+        )
+        (SD.lift .people SD.identity)
+        settingsWithoutPeopleDecoder
+
+
+settingsWithoutPeopleDecoder : SD.Decoder SettingsForm Settings
+settingsWithoutPeopleDecoder =
     SD.map14 settingsBuilder
         boardConfigFormsDecoder
         completedDecoder
@@ -455,6 +472,7 @@ settingsBuilder bc com fts fdw fut ifn ots tcf clt cso tod tom und unt =
             , taskCompletionFormat = tcf
             , taskCompletionInLocalTime = clt
             , taskCompletionShowUtcOffset = cso
+            , people = []
             }
     in
     { boardConfigs = bc

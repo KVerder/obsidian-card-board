@@ -2,9 +2,11 @@ module Session exposing
     ( Msg(..)
     , Session
     , TaskCompletionSettings
+    , ViewOptions
     , addTaskList
     , boardConfigs
     , cards
+    , changeScheduleWeek
     , dataviewTaskCompletion
     , default
     , dragTracker
@@ -23,6 +25,9 @@ module Session exposing
     , removeTaskItems
     , replaceTaskItems
     , replaceTaskList
+    , scheduleBoardId
+    , schedulePlan
+    , setPersonFilter
     , settings
     , stopTrackingDragable
     , switchToBoardAt
@@ -34,14 +39,18 @@ module Session exposing
     , timeIs
     , timeWithZone
     , timeWithZoneIs
+    , toggleSmartSchedule
     , uniqueId
     , updateColumnCollapse
     , updatePath
     , updateSettings
     , updateTextDirection
+    , viewOptions
+    , visibleTaskList
     , waitForDrag
     )
 
+import Board
 import BoardConfig exposing (BoardConfig)
 import Boards
 import Card exposing (Card)
@@ -55,6 +64,7 @@ import InteropDefinitions
 import List.Extra as LE
 import SafeZipper exposing (SafeZipper)
 import Settings exposing (Settings)
+import SmartSchedule
 import State exposing (State)
 import TaskItem exposing (TaskItem)
 import TaskList exposing (TaskList)
@@ -80,6 +90,7 @@ type alias Config =
     , taskList : State TaskList
     , textDirection : TextDirection
     , timeWithZone : TimeWithZone
+    , viewOptions : ViewOptions
     , uniqueId : String
     }
 
@@ -116,6 +127,7 @@ default =
             { time = Time.millisToPosix 0
             , zone = Time.customZone 0 []
             }
+        , viewOptions = { person = Nothing, smart = False, weekOffset = 0 }
         , uniqueId = "xXxXx"
         }
 
@@ -143,6 +155,7 @@ fromFlags flags =
             { time = Time.millisToPosix flags.now
             , zone = Time.customZone flags.zone []
             }
+        , viewOptions = { person = Nothing, smart = False, weekOffset = 0 }
         , uniqueId = flags.uniqueId
         }
 
@@ -158,6 +171,15 @@ boardConfigs (Session config) =
 
 cards : Session -> List Card
 cards ((Session config) as session) =
+    if config.viewOptions.smart then
+        SmartSchedule.cards (scheduleBoardId session) (TimeWithZone.toDate config.timeWithZone) config.viewOptions.weekOffset (schedulePlan session)
+
+    else
+        normalCards session
+
+
+normalCards : Session -> List Card
+normalCards ((Session config) as session) =
     session
         |> taskList
         |> Boards.init config.uniqueId (Settings.boardConfigs config.settings)
@@ -444,3 +466,63 @@ updatePath oldPath newPath (Session config) =
 updateTaskListState : State TaskList -> Session -> Session
 updateTaskListState taskListState (Session config) =
     Session { config | taskList = taskListState }
+
+
+type alias ViewOptions =
+    { person : Maybe String, smart : Bool, weekOffset : Int }
+
+
+viewOptions : Session -> ViewOptions
+viewOptions (Session config) =
+    config.viewOptions
+
+
+setPersonFilter : Maybe String -> Session -> Session
+setPersonFilter person (Session config) =
+    let
+        options =
+            config.viewOptions
+    in
+    Session { config | viewOptions = { options | person = person } }
+
+
+toggleSmartSchedule : Session -> Session
+toggleSmartSchedule (Session config) =
+    let
+        options =
+            config.viewOptions
+    in
+    Session { config | viewOptions = { options | smart = not options.smart } }
+
+
+changeScheduleWeek : Int -> Session -> Session
+changeScheduleWeek delta (Session config) =
+    let
+        options =
+            config.viewOptions
+    in
+    Session { config | viewOptions = { options | weekOffset = max 0 (options.weekOffset + delta) } }
+
+
+visibleTaskList : Session -> TaskList
+visibleTaskList session =
+    case (viewOptions session).person of
+        Nothing ->
+            taskList session
+
+        Just person ->
+            TaskList.filter (\task -> Maybe.map String.toLower (TaskItem.assignee task) == Just (String.toLower person)) (taskList session)
+
+
+scheduleBoardId : Session -> String
+scheduleBoardId session =
+    boardConfigs session |> SafeZipper.current |> Maybe.map (\config -> Board.init (uniqueId session) config TaskList.empty |> Board.id) |> Maybe.withDefault "schedule"
+
+
+schedulePlan : Session -> SmartSchedule.Plan
+schedulePlan session =
+    boardConfigs session
+        |> SafeZipper.current
+        |> Maybe.map (\config -> Board.init (uniqueId session) config (visibleTaskList session) |> Board.tasks (ignoreFileNameDates session) |> TaskList.topLevelTasks)
+        |> Maybe.withDefault []
+        |> SmartSchedule.plan (TimeWithZone.toDate (timeWithZone session))

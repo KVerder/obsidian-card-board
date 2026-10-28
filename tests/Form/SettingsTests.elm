@@ -664,6 +664,7 @@ exampleSettingsForm =
     , taskCompletionFormat = ""
     , taskCompletionInLocalTime = False
     , taskCompletionShowUtcOffset = False
+    , people = []
     , today = ""
     , tomorrow = ""
     , undated = ""

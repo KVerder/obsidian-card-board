@@ -162,7 +162,8 @@ toString ((UpdatedTaskItem change taskItem) as updatedTaskItem) =
             let
                 removeDueTags : String -> String
                 removeDueTags =
-                    regexReplacer " @due\\(\\d{4}-\\d{2}-\\d{2}\\)" (\_ -> "")
+                    regexReplacer " due[ \t]+[0-9]{2}-[0-9]{2}(?:-[0-9]{2})?(?=$|[ \t])" (\_ -> "")
+                        >> regexReplacer " @due\\((?:\\d{4}-\\d{2}-\\d{2}|none)\\)" (\_ -> "")
                         >> regexReplacer " 📅 \\d{4}-\\d{2}-\\d{2}" (\_ -> "")
                         >> regexReplacer " \\[due:: \\d{4}-\\d{2}-\\d{2}\\]" (\_ -> "")
             in

@@ -169,5 +169,5 @@ decoderTests =
                 ""
                     |> DecodeHelpers.runDecoder decoder
                     |> .tsType
-                    |> Expect.equal "{ fileContents : string; fileDate : string | null; filePath : string }"
+                    |> Expect.equal "(({ currentYear : number } | JsonValue) & { fileContents : string; fileDate : string | null; filePath : string })"
         ]

@@ -5,6 +5,7 @@ import {
   MarkdownRenderer,
   MarkdownView,
   Menu,
+  Notice,
   TAbstractFile,
   TFile,
   TFolder,
@@ -20,6 +21,8 @@ import { CardBoardPluginSettingsPostV11, TaskItem } from './types';
 import { getDateFromFile, IPeriodicNoteSettings } from 'obsidian-daily-notes-interface';
 import { FileFilter } from './fileFilter'
 import { Scrollable } from './scrollable'
+import { BoardActions } from './boardActions';
+import { applyTaskReplacements } from './cardEditing';
 
 export const VIEW_TYPE_CARD_BOARD = "card-board-view";
 
@@ -29,6 +32,7 @@ export class CardBoardView extends ItemView {
   private elm:        ElmApp;
   private elmDiv:     any;
   private fileFilter: FileFilter;
+  private boardActions: BoardActions;
 
   constructor(
     plugin: CardBoardPlugin,
@@ -58,6 +62,8 @@ export class CardBoardView extends ItemView {
     } else {
       this.fileFilter = new FileFilter([]);
     }
+
+    this.boardActions = new BoardActions(this.app, () => this.plugin.settings as CardBoardPluginSettingsPostV11, this.fileFilter, settings => this.handleUpdateSettings(settings));
 
     // @ts-ignore
     const dataviewSettings = this.app.plugins.getPlugin("dataview")?.settings
@@ -99,6 +105,21 @@ export class CardBoardView extends ItemView {
           break;
         case "closeView":
           that.handleCloseView();
+          break;
+        case "editPlanning":
+          that.boardActions.editPlanning(fromElm.data);
+          break;
+        case "assignCard":
+          that.boardActions.assignCard(fromElm.data);
+          break;
+        case "createCard":
+          that.boardActions.createCard(fromElm.data);
+          break;
+        case "moveCard":
+          that.boardActions.moveCard(fromElm.data);
+          break;
+        case "showMoveCardMenu":
+          that.boardActions.showMoveCardMenu(fromElm.data);
           break;
         case "deleteTask":
           that.handleDeleteTask(fromElm.data);
@@ -546,18 +567,12 @@ export class CardBoardView extends ItemView {
       filePath: string,
       tasks: { lineNumber: number, originalLine: string, newText: string }[]
   }) {
-    const file = this.app.vault.getAbstractFileByPath(data.filePath)
-
-    if (file instanceof TFile) {
-      const markdown      = await this.vault.read(file)
-      const markdownLines = markdown.split(/\r?\n/)
-
-      for (const item of data.tasks) {
-        if (markdownLines[item.lineNumber - 1].includes(item.originalLine)) {
-          markdownLines[item.lineNumber - 1] = item.newText
-        }
-      }
-      this.vault.modify(file, markdownLines.join("\n"))
+    try {
+      const file = this.app.vault.getAbstractFileByPath(data.filePath);
+      if (!(file instanceof TFile)) throw new Error('The task note no longer exists.');
+      await this.vault.process(file, markdown => applyTaskReplacements(markdown, data.tasks));
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : 'Could not update task.');
     }
   }
 

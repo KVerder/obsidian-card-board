@@ -1,4 +1,13 @@
-# Obsidian CardBoard Plugin
+# Obsidian CardBoard — people and smart scheduling
+
+Extended fork of roovo/obsidian-card-board. Adds board-side task creation, hashtag-based card moves, `due dd-mm-yy` / `due dd-mm`, assignees with shared editable colours, duration estimates, person tabs and a five-workday smart schedule.
+
+**Install this fork:** follow [INSTALL.md](INSTALL.md) and use the release ZIP from this repository. The community listing still installs the original plugin.
+
+![Smart schedule browser fixture](images/smart-schedule.png)
+
+The screenshot uses synthetic tasks in the browser verification fixture. See [VERIFICATION.md](VERIFICATION.md) for the test-and-revision record.
+
 
 ![License](https://img.shields.io/github/license/roovo/obsidian-card-board)
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/roovo/obsidian-card-board?style=flat-square)

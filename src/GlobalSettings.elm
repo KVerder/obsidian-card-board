@@ -20,6 +20,7 @@ module GlobalSettings exposing
 import DefaultColumnNames exposing (DefaultColumnNames)
 import Filter exposing (Filter)
 import Json.Encode as JE
+import Person exposing (Person)
 import Time
 import TsJson.Decode as TsDecode
 import TsJson.Encode as TsEncode
@@ -49,6 +50,7 @@ type alias GlobalSettings =
     , taskCompletionFormat : TaskCompletionFormat
     , taskCompletionInLocalTime : Bool
     , taskCompletionShowUtcOffset : Bool
+    , people : List Person
     }
 
 
@@ -68,6 +70,7 @@ default =
     , taskCompletionFormat = ObsidianCardBoard
     , taskCompletionInLocalTime = True
     , taskCompletionShowUtcOffset = True
+    , people = []
     }
 
 
@@ -85,6 +88,7 @@ encoder =
         , TsEncode.required "taskCompletionFormat" .taskCompletionFormat taskCompletionFormatEncoder
         , TsEncode.required "taskCompletionInLocalTime" .taskCompletionInLocalTime TsEncode.bool
         , TsEncode.required "taskCompletionShowUtcOffset" .taskCompletionShowUtcOffset TsEncode.bool
+        , TsEncode.required "people" .people (TsEncode.list personEncoder)
         ]
 
 
@@ -98,6 +102,7 @@ v_0_13_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.field "taskCompletionInLocalTime" TsDecode.bool)
         |> TsDecode.andMap (TsDecode.field "taskCompletionShowUtcOffset" TsDecode.bool)
+        |> TsDecode.andMap (TsDecode.oneOf [ TsDecode.field "people" (TsDecode.list personDecoder), TsDecode.succeed [] ])
 
 
 
@@ -126,6 +131,7 @@ v_0_12_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.field "taskCompletionInLocalTime" TsDecode.bool)
         |> TsDecode.andMap (TsDecode.field "taskCompletionShowUtcOffset" TsDecode.bool)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_11_0_decoder : TsDecode.Decoder GlobalSettings
@@ -138,6 +144,7 @@ v_0_11_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_10_0_decoder : TsDecode.Decoder GlobalSettings
@@ -150,6 +157,7 @@ v_0_10_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_9_0_decoder : TsDecode.Decoder GlobalSettings
@@ -162,6 +170,7 @@ v_0_9_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_8_0_decoder : TsDecode.Decoder GlobalSettings
@@ -174,6 +183,7 @@ v_0_8_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_7_0_decoder : TsDecode.Decoder GlobalSettings
@@ -186,6 +196,7 @@ v_0_7_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_6_0_decoder : TsDecode.Decoder GlobalSettings
@@ -198,6 +209,7 @@ v_0_6_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_5_0_decoder : TsDecode.Decoder GlobalSettings
@@ -210,6 +222,7 @@ v_0_5_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskUpdateFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 
@@ -304,3 +317,18 @@ taskCompletionFormatEncoder =
         |> TsEncode.variantLiteral (JE.string "ObsidianDataview")
         |> TsEncode.variantLiteral (JE.string "ObsidianTasks")
         |> TsEncode.buildUnion
+
+
+personDecoder : TsDecode.Decoder Person
+personDecoder =
+    TsDecode.succeed Person
+        |> TsDecode.andMap (TsDecode.field "name" TsDecode.string)
+        |> TsDecode.andMap (TsDecode.field "color" TsDecode.string)
+
+
+personEncoder : TsEncode.Encoder Person
+personEncoder =
+    TsEncode.object
+        [ TsEncode.required "name" .name TsEncode.string
+        , TsEncode.required "color" .color TsEncode.string
+        ]

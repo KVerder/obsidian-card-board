@@ -194,6 +194,7 @@ basicMarkdown path date body =
     { filePath = path
     , fileDate = date
     , frontMatterTags = TagList.empty
+    , currentYear = Nothing
     , bodyOffset = 0
     , body = body
     }

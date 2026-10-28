@@ -499,6 +499,7 @@ globalSettingsDefault =
     , taskCompletionFormat = GlobalSettings.ObsidianCardBoard
     , taskCompletionInLocalTime = False
     , taskCompletionShowUtcOffset = False
+    , people = []
     }
 
 

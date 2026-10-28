@@ -1,6 +1,9 @@
 module InteropDefinitions exposing
-    ( Flags
+    ( BoardLocation
+    , CardLocation
+    , Flags
     , FromElm(..)
+    , MoveLocation
     , ToElm(..)
     , interop
     )
@@ -18,9 +21,26 @@ import TsJson.Decode as TsDecode
 import TsJson.Encode as TsEncode exposing (required)
 
 
+type alias BoardLocation =
+    { boardIndex : Int, columnIndex : Int }
+
+
+type alias CardLocation =
+    { boardIndex : Int, taskItem : TaskItem }
+
+
+type alias MoveLocation =
+    { boardIndex : Int, columnIndex : Int, taskItem : TaskItem }
+
+
 type FromElm
     = AddFilePreviewHovers (List { filePath : String, id : String })
     | CloseView
+    | EditPlanning CardLocation
+    | AssignCard CardLocation
+    | CreateCard BoardLocation
+    | MoveCard MoveLocation
+    | ShowMoveCardMenu CardLocation
     | DeleteTask TaskItemFields
     | DisplayTaskMarkdown (List { filePath : String, taskMarkdown : List { id : String, markdown : String } })
     | ElmInitialized String
@@ -103,10 +123,25 @@ toElm =
 fromElm : TsEncode.Encoder FromElm
 fromElm =
     TsEncode.union
-        (\vAddFilePreviewHovers vCloseView vDeleteTask vDisplayTaskMarkdown vElmInitialized vOpenTaskSourceFile vRequestPaths vShowCardContextMenu vTrackDraggable vUpdateSettings vUpdateTasks value ->
+        (\vAddFilePreviewHovers vCloseView vDeleteTask vDisplayTaskMarkdown vElmInitialized vOpenTaskSourceFile vRequestPaths vShowCardContextMenu vTrackDraggable vUpdateSettings vUpdateTasks vEditPlanning vAssignCard vCreateCard vMoveCard vShowMoveCardMenu value ->
             case value of
                 AddFilePreviewHovers info ->
                     vAddFilePreviewHovers info
+
+                EditPlanning info ->
+                    vEditPlanning info
+
+                AssignCard info ->
+                    vAssignCard info
+
+                CreateCard info ->
+                    vCreateCard info
+
+                MoveCard info ->
+                    vMoveCard info
+
+                ShowMoveCardMenu info ->
+                    vShowMoveCardMenu info
 
                 CloseView ->
                     vCloseView
@@ -149,6 +184,11 @@ fromElm =
         |> TsEncode.variantTagged "trackDraggable" trackDraggableEncoder
         |> TsEncode.variantTagged "updateSettings" Settings.encoder
         |> TsEncode.variantTagged "updateTasks" updateTasksEncoder
+        |> TsEncode.variantTagged "editPlanning" cardLocationEncoder
+        |> TsEncode.variantTagged "assignCard" cardLocationEncoder
+        |> TsEncode.variantTagged "createCard" boardLocationEncoder
+        |> TsEncode.variantTagged "moveCard" moveLocationEncoder
+        |> TsEncode.variantTagged "showMoveCardMenu" cardLocationEncoder
         |> TsEncode.buildUnion
 
 
@@ -249,4 +289,29 @@ updateTasksEncoder =
     TsEncode.object
         [ required "filePath" .filePath TsEncode.string
         , required "tasks" .tasks (TsEncode.list taskUpdatesEncoder)
+        ]
+
+
+boardLocationEncoder : TsEncode.Encoder BoardLocation
+boardLocationEncoder =
+    TsEncode.object
+        [ required "boardIndex" .boardIndex TsEncode.int
+        , required "columnIndex" .columnIndex TsEncode.int
+        ]
+
+
+cardLocationEncoder : TsEncode.Encoder CardLocation
+cardLocationEncoder =
+    TsEncode.object
+        [ required "boardIndex" .boardIndex TsEncode.int
+        , required "taskItem" .taskItem TaskItem.encoder
+        ]
+
+
+moveLocationEncoder : TsEncode.Encoder MoveLocation
+moveLocationEncoder =
+    TsEncode.object
+        [ required "boardIndex" .boardIndex TsEncode.int
+        , required "columnIndex" .columnIndex TsEncode.int
+        , required "taskItem" .taskItem TaskItem.encoder
         ]

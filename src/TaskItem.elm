@@ -7,6 +7,7 @@ module TaskItem exposing
     , TaskItemFields
     , allSubtasksWithMatchingTagCompleted
     , asSingleTaskItems
+    , assignee
     , compare
     , completedPosix
     , completion
@@ -17,6 +18,7 @@ module TaskItem exposing
     , dueRataDie
     , dummy
     , encoder
+    , estimateHours
     , fields
     , filePath
     , hasNotes
@@ -29,11 +31,13 @@ module TaskItem exposing
     , isCompleted
     , isDated
     , isFromFile
+    , isUrgent
     , lineNumber
     , notes
     , originalBlock
     , originalLine
     , parser
+    , parserWithYear
     , removeFileNameDate
     , removeMatchingTags
     , removeTags
@@ -59,9 +63,12 @@ import Maybe.Extra as ME
 import ObsidianTasksDate
 import Parser as P exposing ((|.), (|=), Parser)
 import ParserHelper exposing (isSpaceOrTab, lineEndOrEnd)
+import Person
+import PlainDueDate
 import StringDistance
 import Tag exposing (Tag)
 import TagList exposing (TagList)
+import TaskEstimate
 import TaskPaperTag
 import Time
 import TsJson.Decode as TsDecode
@@ -105,7 +112,10 @@ type Completion
 
 
 type Content
-    = AutoCompleteTag AutoCompletion
+    = EstimateTag Float
+    | UrgentTag
+    | AssignedTag String
+    | AutoCompleteTag AutoCompletion
     | CompletedTag Time.Posix
     | DueTag DueDate
     | ObsidianTag Tag
@@ -459,6 +469,9 @@ titleWithTags taskItem =
         extractContent : Content -> List String -> List String
         extractContent content strings =
             case content of
+                AssignedTag _ ->
+                    strings
+
                 Word word ->
                     word :: strings
 
@@ -596,10 +609,15 @@ updateFilePath oldPath newPath ((TaskItem fields_ subtasks_) as taskItem) =
 
 
 parser : DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser TaskItem
-parser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
+parser =
+    parserWithYear Nothing
+
+
+parserWithYear : Maybe Int -> DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser TaskItem
+parserWithYear currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
     P.succeed itemWithOriginalBlock
         |= P.getOffset
-        |= taskItemParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset
+        |= taskItemParser currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset
         |= P.getOffset
         |= P.getSource
 
@@ -608,8 +626,8 @@ parser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
 -- PRIVATE
 
 
-addAnySubtasksAndNotes : DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> TaskItemFields -> Parser TaskItem
-addAnySubtasksAndNotes dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset fields_ =
+addAnySubtasksAndNotes : Maybe Int -> DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> TaskItemFields -> Parser TaskItem
+addAnySubtasksAndNotes currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset fields_ =
     let
         buildTaskItem : List IndentedItem -> Parser TaskItem
         buildTaskItem indentedItems =
@@ -643,7 +661,7 @@ addAnySubtasksAndNotes dataviewTaskCompletion pathToFile fileDate frontMatterTag
                 |> String.join "\n"
     in
     P.succeed identity
-        |= ParserHelper.indentParser (indentedItemParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset)
+        |= ParserHelper.indentParser (indentedItemParser currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset)
         |> P.andThen buildTaskItem
 
 
@@ -656,20 +674,20 @@ autoCompleteTagger flag =
         AutoCompleteTag FalseSpecified
 
 
-contentHelp : DataviewTaskCompletion -> List Content -> Parser (P.Step (List Content) (List Content))
-contentHelp dataviewTaskCompletion revContents =
+contentHelp : Maybe Int -> DataviewTaskCompletion -> List Content -> Parser (P.Step (List Content) (List Content))
+contentHelp currentYear dataviewTaskCompletion revContents =
     P.oneOf
         [ P.succeed (\content -> P.Loop (content :: revContents))
-            |= tokenParser dataviewTaskCompletion
+            |= tokenParser currentYear dataviewTaskCompletion
             |. P.chompWhile isSpaceOrTab
         , P.succeed ()
             |> P.map (\_ -> P.Done (List.reverse revContents))
         ]
 
 
-contentParser : DataviewTaskCompletion -> Parser (List Content)
-contentParser dataviewTaskCompletion =
-    P.loop [] <| contentHelp dataviewTaskCompletion
+contentParser : Maybe Int -> DataviewTaskCompletion -> Parser (List Content)
+contentParser currentYear dataviewTaskCompletion =
+    P.loop [] <| contentHelp currentYear dataviewTaskCompletion
 
 
 fileDateParser : Maybe String -> Parser (Maybe Date)
@@ -715,10 +733,10 @@ fileIsFromPath file path =
         |> List.all identity
 
 
-indentedItemParser : DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser IndentedItem
-indentedItemParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
+indentedItemParser : Maybe Int -> DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser IndentedItem
+indentedItemParser currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
     P.oneOf
-        [ subTaskParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset
+        [ subTaskParser currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset
         , notesParser
         ]
 
@@ -769,8 +787,8 @@ rejectIfNoTitle fields_ =
         P.succeed fields_
 
 
-subTaskParser : DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser IndentedItem
-subTaskParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
+subTaskParser : Maybe Int -> DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser IndentedItem
+subTaskParser currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
     P.succeed taskItemFieldsBuilder
         |= P.getOffset
         |= P.getCol
@@ -781,7 +799,7 @@ subTaskParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOff
         |= prefixParser
         |. P.chompWhile isSpaceOrTab
         |= fileDateParser fileDate
-        |= contentParser dataviewTaskCompletion
+        |= contentParser currentYear dataviewTaskCompletion
         |= P.getOffset
         |. lineEndOrEnd
         |= P.getSource
@@ -818,6 +836,15 @@ taskItemFieldsBuilder startOffset startColumn path frontMatterTags bodyOffset ro
         extractContents : Content -> TaskItemFields -> TaskItemFields
         extractContents content fields_ =
             case content of
+                EstimateTag _ ->
+                    fields_
+
+                UrgentTag ->
+                    fields_
+
+                AssignedTag _ ->
+                    fields_
+
                 Word word ->
                     { fields_ | title = word :: fields_.title }
 
@@ -860,8 +887,8 @@ taskItemFieldsBuilder startOffset startColumn path frontMatterTags bodyOffset ro
         |> addCompletionTime
 
 
-taskItemParser : DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser TaskItem
-taskItemParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
+taskItemParser : Maybe Int -> DataviewTaskCompletion -> String -> Maybe String -> TagList -> Int -> Parser TaskItem
+taskItemParser currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset =
     (P.succeed taskItemFieldsBuilder
         |= P.getOffset
         |= P.getCol
@@ -872,13 +899,13 @@ taskItemParser dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOf
         |= prefixParser
         |. P.chompWhile isSpaceOrTab
         |= fileDateParser fileDate
-        |= contentParser dataviewTaskCompletion
+        |= contentParser currentYear dataviewTaskCompletion
         |= P.getOffset
         |. lineEndOrEnd
         |= P.getSource
     )
         |> P.andThen rejectIfNoTitle
-        |> P.andThen (addAnySubtasksAndNotes dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset)
+        |> P.andThen (addAnySubtasksAndNotes currentYear dataviewTaskCompletion pathToFile fileDate frontMatterTags bodyOffset)
 
 
 toggleCompletion : { a | time : Time.Posix } -> TaskItem -> TaskItem
@@ -894,10 +921,14 @@ toggleCompletion timeWithZone (TaskItem fields_ subtasks_) =
             TaskItem { fields_ | completion = CompletedAt timeWithZone.time } subtasks_
 
 
-tokenParser : DataviewTaskCompletion -> Parser Content
-tokenParser dataviewTaskCompletion =
+tokenParser : Maybe Int -> DataviewTaskCompletion -> Parser Content
+tokenParser currentYear dataviewTaskCompletion =
     P.oneOf
-        [ P.backtrackable <| TaskPaperTag.completedTagParser CompletedTag
+        [ P.backtrackable <| P.map EstimateTag TaskEstimate.parser
+        , P.backtrackable <| (P.succeed UrgentTag |. P.keyword "@urgent")
+        , P.backtrackable <| P.map AssignedTag Person.parser
+        , P.backtrackable <| P.map DueTag (PlainDueDate.parser currentYear)
+        , P.backtrackable <| TaskPaperTag.completedTagParser CompletedTag
         , P.backtrackable <| TaskPaperTag.dueTagParser DueTag
         , P.backtrackable <| TaskPaperTag.autocompleteTagParser autoCompleteTagger
         , P.backtrackable <| ObsidianTasksDate.dueDateParser DueTag
@@ -975,7 +1006,10 @@ completionEncoder =
 contentDecoder : TsDecode.Decoder Content
 contentDecoder =
     TsDecode.oneOf
-        [ DecodeHelpers.toElmVariant "AutoCompleteTag" AutoCompleteTag autoCompletionDecoder
+        [ DecodeHelpers.toElmVariant "EstimateTag" EstimateTag TsDecode.float
+        , DecodeHelpers.toElmVariant0 "UrgentTag" UrgentTag
+        , DecodeHelpers.toElmVariant "AssignedTag" AssignedTag TsDecode.string
+        , DecodeHelpers.toElmVariant "AutoCompleteTag" AutoCompleteTag autoCompletionDecoder
         , DecodeHelpers.toElmVariant "CompletedTag" CompletedTag (TsDecode.map Time.millisToPosix TsDecode.int)
         , DecodeHelpers.toElmVariant "DueTag" DueTag DueDate.decoder
         , DecodeHelpers.toElmVariant "ObsidianTag" ObsidianTag Tag.decoder
@@ -986,8 +1020,17 @@ contentDecoder =
 contentEncoder : TsEncode.Encoder Content
 contentEncoder =
     TsEncode.union
-        (\vAutoCompleteTag vCompletedTag vDueTag vObsidianTag vWord value ->
+        (\vEstimateTag vUrgentTag vAssignedTag vAutoCompleteTag vCompletedTag vDueTag vObsidianTag vWord value ->
             case value of
+                EstimateTag hours ->
+                    vEstimateTag hours
+
+                UrgentTag ->
+                    vUrgentTag
+
+                AssignedTag name ->
+                    vAssignedTag name
+
                 AutoCompleteTag autoCompletion ->
                     vAutoCompleteTag autoCompletion
 
@@ -1003,6 +1046,9 @@ contentEncoder =
                 Word word ->
                     vWord word
         )
+        |> TsEncode.variantTagged "EstimateTag" TsEncode.float
+        |> TsEncode.variant0 "UrgentTag"
+        |> TsEncode.variantTagged "AssignedTag" TsEncode.string
         |> TsEncode.variantTagged "AutoCompleteTag" autoCompletionEncoder
         |> TsEncode.variantTagged "CompletedTag" (TsEncode.map Time.posixToMillis TsEncode.int)
         |> TsEncode.variantTagged "DueTag" DueDate.encoder
@@ -1078,3 +1124,38 @@ topLevelTaskHasThisTag tagToMatch =
             fields_.tags
     in
     TagList.containsTagMatching tagToMatch << topLevelTasksTags
+
+
+assignee : TaskItem -> Maybe String
+assignee taskItem =
+    (fields taskItem).contents
+        |> List.filterMap
+            (\content ->
+                case content of
+                    AssignedTag name ->
+                        Just name
+
+                    _ ->
+                        Nothing
+            )
+        |> List.head
+
+
+estimateHours : TaskItem -> Maybe Float
+estimateHours taskItem =
+    (fields taskItem).contents
+        |> List.filterMap
+            (\content ->
+                case content of
+                    EstimateTag hours ->
+                        Just hours
+
+                    _ ->
+                        Nothing
+            )
+        |> List.head
+
+
+isUrgent : TaskItem -> Bool
+isUrgent taskItem =
+    List.member UrgentTag (fields taskItem).contents

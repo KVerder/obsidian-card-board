@@ -14,6 +14,7 @@ import Html.Attributes exposing (class, classList, placeholder, tabindex, type_,
 import Html.Events exposing (onBlur, onClick, onFocus, onInput, stopPropagationOn)
 import Json.Decode as JD
 import List.Extra as LE
+import PlainDueDate
 import Time
 
 
@@ -67,9 +68,7 @@ isValid datePicker =
 
 pickedDate : DatePicker -> Maybe Date
 pickedDate (DatePicker model) =
-    model.inputText
-        |> Date.fromIsoString
-        |> Result.toMaybe
+    PlainDueDate.fromString (Date.year model.today) model.inputText
 
 
 
