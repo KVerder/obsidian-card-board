@@ -13,7 +13,14 @@ import Test exposing (Test, describe, test)
 suite : Test
 suite =
     describe "smart scheduling"
-        [ test "a ten-hour task splits across two workdays" <|
+        [ test "shared work divides duration and schedules each person's share against their own capacity" <|
+            \() ->
+                schedule [ task "Shared @takes(4h) @assigned(Alex) @assigned(Sam)", task "Earlier @takes(8h) @urgent @assigned(Alex)" ]
+                    |> .placements
+                    |> List.filter (\placement -> TaskItem.title placement.task == "Shared")
+                    |> List.map (\placement -> ( placement.person, placement.start, placement.hours ))
+                    |> Expect.equal [ ( "Alex", 8, 2 ), ( "Sam", 0, 2 ) ]
+        , test "a ten-hour task splits across two workdays" <|
             \() ->
                 schedule [ task "Long @estimate(10h) @assigned(Alex)" ]
                     |> SmartSchedule.allocations today 0

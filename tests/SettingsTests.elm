@@ -378,6 +378,7 @@ exampleGlobalSettings =
     , taskCompletionInLocalTime = False
     , taskCompletionShowUtcOffset = False
     , people = []
+    , cardOrder = []
     }
 
 

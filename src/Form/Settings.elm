@@ -23,6 +23,7 @@ module Form.Settings exposing
     )
 
 import BoardConfig exposing (BoardConfig)
+import CardOrder
 import DefaultColumnNames exposing (DefaultColumnNames)
 import DragAndDrop.BeaconPosition as BeaconPosition exposing (BeaconPosition)
 import Filter exposing (Filter)
@@ -56,6 +57,7 @@ type alias SettingsForm =
     , taskCompletionInLocalTime : Bool
     , taskCompletionShowUtcOffset : Bool
     , people : List Person
+    , cardOrder : List CardOrder.Order
     , today : String
     , tomorrow : String
     , undated : String
@@ -135,6 +137,7 @@ init settings =
     , taskCompletionInLocalTime = globalSettings_.taskCompletionInLocalTime
     , taskCompletionShowUtcOffset = globalSettings_.taskCompletionShowUtcOffset
     , people = globalSettings_.people
+    , cardOrder = globalSettings_.cardOrder
     , today = Maybe.withDefault "" defaultColumnNames_.today
     , tomorrow = Maybe.withDefault "" defaultColumnNames_.tomorrow
     , undated = Maybe.withDefault "" defaultColumnNames_.undated
@@ -149,14 +152,14 @@ init settings =
 safeDecoder : SD.Decoder SettingsForm Settings
 safeDecoder =
     SD.map2
-        (\people settings ->
+        (\extras settings ->
             let
                 global =
                     settings.globalSettings
             in
-            { settings | globalSettings = { global | people = people } }
+            { settings | globalSettings = { global | people = extras.people, cardOrder = extras.cardOrder } }
         )
-        (SD.lift .people SD.identity)
+        (SD.map2 (\people cardOrder -> { people = people, cardOrder = cardOrder }) (SD.lift .people SD.identity) (SD.lift .cardOrder SD.identity))
         settingsWithoutPeopleDecoder
 
 
@@ -473,6 +476,7 @@ settingsBuilder bc com fts fdw fut ifn ots tcf clt cso tod tom und unt =
             , taskCompletionInLocalTime = clt
             , taskCompletionShowUtcOffset = cso
             , people = []
+            , cardOrder = []
             }
     in
     { boardConfigs = bc

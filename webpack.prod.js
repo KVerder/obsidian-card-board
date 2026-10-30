@@ -39,12 +39,19 @@ module.exports = merge(common, {
   module: {
     rules: [
       {
+        test: /\.elm$/,
+        resourceQuery: /worker-source/,
+        type: 'asset/source',
+        use: [{ loader: 'elm-webpack-loader', options: { optimize: true } }]
+      },
+      {
         test: [/\.elm$/],
+        resourceQuery: { not: [/worker-source/] },
         exclude: [/elm-stuff/, /node_modules/],
         use: [
           {
             loader: "elm-webpack-loader",
-            options: {}
+            options: { optimize: true }
           }
         ]
       },

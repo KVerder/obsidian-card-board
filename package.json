@@ -1,6 +1,6 @@
 {
   "name": "cardboard",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Card based view for your obsidian Tasks",
   "main": "main.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "generate-worker": "elm-ts-interop --definition-module Worker.InteropDefinitions --entrypoint Worker --output src/Worker/index.d.ts",
     "test": "elm-test tests",
     "test-ts": "jest",
-    "test-browser": "elm make src/Main.elm --output=elm-stuff/smoke-main.js && elm make src/Worker.elm --output=elm-stuff/smoke-worker.js && node scripts/browser-smoke.cjs"
+    "test-browser": "node scripts/browser-build.cjs && elm make src/Main.elm --output=elm-stuff/smoke-main.js && elm make src/Worker.elm --output=elm-stuff/smoke-worker.js && node scripts/browser-smoke.cjs"
   },
   "keywords": [],
   "author": "roovo",

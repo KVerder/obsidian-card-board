@@ -94,7 +94,11 @@ update msg model =
                     TaskList.fromMarkdown (Session.dataviewTaskCompletion <| toSession model) markdownFile
             in
             ( mapSession (Session.addTaskList newTasks) model
-            , InteropPorts.tasksAdded newTasks
+            , if Session.isLoading (toSession model) then
+                Cmd.none
+
+              else
+                InteropPorts.tasksAdded newTasks
             )
 
         VaultFileDeleted filePath ->

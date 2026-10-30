@@ -22,7 +22,10 @@ import { getDateFromFile, IPeriodicNoteSettings } from 'obsidian-daily-notes-int
 import { FileFilter } from './fileFilter'
 import { Scrollable } from './scrollable'
 import { BoardActions } from './boardActions';
-import { applyTaskReplacements } from './cardEditing';
+import { CardDrag } from './cardDrag';
+import { TaskReplacement, applyTaskReplacements } from './cardEditing';
+import { completionDefaultHours, isKillianTask, needsCompletionDuration, withCompletionDuration } from './completionDuration';
+import { askCompletionDuration } from './completionDurationModal';
 
 export const VIEW_TYPE_CARD_BOARD = "card-board-view";
 
@@ -33,6 +36,10 @@ export class CardBoardView extends ItemView {
   private elmDiv:     any;
   private fileFilter: FileFilter;
   private boardActions: BoardActions;
+  private cardDrag: CardDrag;
+  private hoverElements = new WeakSet<HTMLElement>();
+  private renderedMarkdown = new WeakMap<HTMLElement, string>();
+  private reorderQueue: Promise<void> = Promise.resolve();
 
   constructor(
     plugin: CardBoardPlugin,
@@ -91,6 +98,8 @@ export class CardBoardView extends ItemView {
       flags: mySettings
     })
 
+    this.cardDrag = new CardDrag(this.containerEl);
+
     // TODO: I know I shouldn't need to do this, but my js foo
     // failed me at the time!
     const that = this;
@@ -114,6 +123,9 @@ export class CardBoardView extends ItemView {
           break;
         case "createCard":
           that.boardActions.createCard(fromElm.data);
+          break;
+        case "reorderCard":
+          that.reorderQueue = that.reorderQueue.then(() => that.boardActions.reorderCard(fromElm.data)).catch(error => { new Notice(String(error)); });
           break;
         case "moveCard":
           that.boardActions.moveCard(fromElm.data);
@@ -160,6 +172,7 @@ export class CardBoardView extends ItemView {
   }
 
   async onClose() {
+    this.cardDrag?.destroy();
     await this.elm.ports.interopToElm.send({
       tag: "activeStateUpdated",
       data: false
@@ -188,14 +201,17 @@ export class CardBoardView extends ItemView {
         const element = document.getElementById(card.id);
 
         if (element instanceof HTMLElement) {
+          element.dataset.cardBoardFile = card.filePath;
+          if (that.hoverElements.has(element)) continue;
+          that.hoverElements.add(element);
           element.addEventListener('mouseover', (event: MouseEvent) => {
             that.app.workspace.trigger('hover-link', {
               event,
               source: "card-board",
               hoverParent: element,
               targetEl: element,
-              linktext: card.filePath,
-              sourcePath: card.filePath
+              linktext: element.dataset.cardBoardFile,
+              sourcePath: element.dataset.cardBoardFile
             });
           });
         }
@@ -207,23 +223,14 @@ export class CardBoardView extends ItemView {
     this.plugin.deactivateView();
   }
 
-  async handleDeleteTask(
-    data: {
-      filePath: string,
-      lineNumber: number,
-      originalLine: string}
-  ) {
-    const file = this.app.vault.getAbstractFileByPath(data.filePath)
-
-    if (file instanceof TFile) {
-      const markdown      = await this.vault.read(file)
-      const markdownLines = markdown.split(/\r?\n/)
-
-      if (markdownLines[data.lineNumber - 1].includes(data.originalLine)) {
-        markdownLines[data.lineNumber - 1] = markdownLines[data.lineNumber - 1].replace(/^(.*)$/, "<del>$1</del>")
-        this.vault.modify(file, markdownLines.join("\n"))
-      }
-    }
+  async handleDeleteTask(data: { filePath: string, lineNumber: number, originalLine: string }) {
+    try {
+      const file = this.app.vault.getAbstractFileByPath(data.filePath);
+      if (!(file instanceof TFile)) throw new Error('The task note no longer exists.');
+      await this.vault.process(file, markdown => applyTaskReplacements(markdown, [{
+        lineNumber: data.lineNumber, originalLine: data.originalLine, newText: '<del>' + data.originalLine + '</del>'
+      }]));
+    } catch (error) { new Notice(error instanceof Error ? error.message : 'Could not delete task.'); }
   }
 
   async handleDisplayTaskMarkdown(
@@ -237,14 +244,19 @@ export class CardBoardView extends ItemView {
   ) {
     const that = this;
 
-    requestAnimationFrame(function () {
+    requestAnimationFrame(async function () {
       for (const card of data) {
         for (const item of card.taskMarkdown) {
           const element = document.getElementById(item.id);
 
           if (element instanceof HTMLElement) {
+            const key = card.filePath + '\u0000' + item.markdown;
+            if (that.renderedMarkdown.get(element) === key) continue;
+            that.renderedMarkdown.set(element, key);
             element.innerHTML = "";
-            MarkdownRenderer.render(that.app, item.markdown, element, card.filePath, that);
+            try { await MarkdownRenderer.render(that.app, item.markdown, element, card.filePath, that); }
+            catch (error) { that.renderedMarkdown.delete(element); continue; }
+            if (!element.isConnected || that.renderedMarkdown.get(element) !== key) continue;
 
             const internalLinks = Array.from(element.getElementsByClassName("internal-link"));
 
@@ -512,11 +524,17 @@ export class CardBoardView extends ItemView {
 
   async handleUpdateSettings(data : CardBoardPluginSettingsPostV11) {
     await this.plugin.saveSettings(data);
+    this.fileFilter.setFilters(data.data.globalSettings.filters);
 
     this.elm.ports.interopToElm.send({
       tag: "settingsUpdated",
       data: data
     });
+  }
+
+  settingsUpdated(data: CardBoardPluginSettingsPostV11) {
+    this.fileFilter.setFilters(data.data.globalSettings.filters);
+    this.elm.ports.interopToElm.send({ tag: 'settingsUpdated', data });
   }
 
   taskItemsRefreshed(taskItems: TaskItem[]) {
@@ -570,7 +588,19 @@ export class CardBoardView extends ItemView {
     try {
       const file = this.app.vault.getAbstractFileByPath(data.filePath);
       if (!(file instanceof TFile)) throw new Error('The task note no longer exists.');
-      await this.vault.process(file, markdown => applyTaskReplacements(markdown, data.tasks));
+      // Reject stale cards before prompting, and check again in the atomic write.
+      applyTaskReplacements(await this.vault.read(file), data.tasks);
+      const tasks: TaskReplacement[] = [];
+      for (const task of data.tasks) {
+        if (needsCompletionDuration(task)) {
+          const hours = await askCompletionDuration(this.app,
+            task.originalLine.replace(/^\s*[-+*] \[ \] /, ''), completionDefaultHours(task), isKillianTask(task));
+          tasks.push(withCompletionDuration(task, hours));
+        } else {
+          tasks.push(task);
+        }
+      }
+      await this.vault.process(file, markdown => applyTaskReplacements(markdown, tasks));
     } catch (error) {
       new Notice(error instanceof Error ? error.message : 'Could not update task.');
     }
@@ -582,7 +612,7 @@ export class CardBoardView extends ItemView {
   ) {
     let isActive: boolean = false;
 
-    if (leaf.view.getViewType() == "card-board-view") {
+    if (leaf?.view.getViewType() == "card-board-view") {
       isActive = true
     }
 

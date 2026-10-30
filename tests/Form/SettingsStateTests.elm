@@ -1046,6 +1046,7 @@ exampleSettingsForm =
     , taskCompletionInLocalTime = False
     , taskCompletionShowUtcOffset = False
     , people = []
+    , cardOrder = []
     , today = ""
     , tomorrow = ""
     , undated = ""

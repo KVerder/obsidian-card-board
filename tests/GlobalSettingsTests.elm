@@ -33,6 +33,7 @@ default =
                         , taskCompletionInLocalTime = True
                         , taskCompletionShowUtcOffset = True
                         , people = []
+                        , cardOrder = []
                         }
         ]
 
@@ -58,6 +59,7 @@ encodeDecode =
                 , taskCompletionInLocalTime = False
                 , taskCompletionShowUtcOffset = False
                 , people = []
+                , cardOrder = []
                 }
                     |> TsEncode.runExample GlobalSettings.encoder
                     |> .output
@@ -81,6 +83,7 @@ encodeDecode =
                             , taskCompletionInLocalTime = False
                             , taskCompletionShowUtcOffset = False
                             , people = []
+                            , cardOrder = []
                             }
                         )
         ]
@@ -99,6 +102,7 @@ taskCompletionSettings =
                 , taskCompletionInLocalTime = True
                 , taskCompletionShowUtcOffset = False
                 , people = []
+                , cardOrder = []
                 }
                     |> GlobalSettings.taskCompletionSettings
                     |> Expect.equal

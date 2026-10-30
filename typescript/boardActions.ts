@@ -3,7 +3,8 @@ import { NewCardModal } from './newCardModal';
 import { AssigneeModal } from './assigneeModal';
 import { PlanningModal } from './planningModal';
 import { readPlanning, writePlanning } from './planning';
-import { assigneeFromLine, assignLine, updatePeople, validatePerson } from './assignees';
+import { assigneesFromLine, assignPeopleLine, updatePeople, validatePerson } from './assignees';
+import { ReorderRequest, prepareOrder, validateSnapshots, blockId, withBlockId } from './cardOrder';
 import { FileFilter } from './fileFilter';
 import { CardBoardPluginSettingsPostV11, TaskItem } from './types';
 import { appendTask, applyTaskReplacements, BoardConfig, boardAllowsTask, insertBeforeBlockId,
@@ -17,25 +18,25 @@ export class BoardActions {
               private fileFilter: FileFilter,
               private saveSettings: (settings: CardBoardPluginSettingsPostV11) => Promise<void>) {}
 
-  assignCard(data: CardLocation) {
+  assignCard(data: CardLocation & { people?: string[] }) {
     new AssigneeModal(this.app, this.settings().data.globalSettings.people || [],
-      assigneeFromLine(data.taskItem.fields.originalLine), async (name, color) => {
-        validatePerson(name, color);
+      assigneesFromLine(data.taskItem.fields.originalLine), async assigned => {
+        assigned.forEach(person => validatePerson(person.name, person.color));
         const file = this.app.vault.getAbstractFileByPath(data.taskItem.fields.filePath);
         if (!(file instanceof TFile)) throw new Error('The task note no longer exists.');
         const replacement = {
           lineNumber: data.taskItem.fields.lineNumber,
           originalLine: data.taskItem.fields.originalLine,
-          newText: assignLine(data.taskItem.fields.originalLine, name)
+          newText: assignPeopleLine(data.taskItem.fields.originalLine, assigned.map(person => person.name))
         };
         // Check the card before saving its shared colour, then check again in the atomic write.
         applyTaskReplacements(await this.app.vault.read(file), [replacement], data.taskItem);
         const settings = this.settings();
-        const people = updatePeople(settings.data.globalSettings.people || [], name, color);
+        const people = assigned.reduce((people, person) => updatePeople(people, person.name, person.color), settings.data.globalSettings.people || []);
         await this.saveSettings({ ...settings, data: { ...settings.data,
           globalSettings: { ...settings.data.globalSettings, people } } });
         await this.app.vault.process(file, markdown => applyTaskReplacements(markdown, [replacement], data.taskItem));
-      }).open();
+      }, data.people || []).open();
   }
 
   private boardConfig(index: number): BoardConfig {
@@ -144,6 +145,53 @@ export class BoardActions {
     // The action button owns keyboard focus, so the same menu works without dragging.
     const rect = document.activeElement?.getBoundingClientRect();
     menu.showAtPosition({ x: rect?.left || 100, y: rect?.bottom || 100 });
+  }
+
+  async reorderCard(data: ReorderRequest): Promise<void> {
+    try {
+      const board = this.boardConfig(data.boardIndex);
+      const column = board?.columns[data.columnIndex];
+      if (!column) throw new Error('The destination column no longer exists.');
+      const moving = data.sourceColumnIndex !== data.columnIndex;
+      if (moving && !isTagDestination(column)) throw new Error('Choose a tag or Untagged column.');
+      const prepared = prepareOrder(data.columnTasks, data.taskItem, data.beforeTask, () => crypto.randomUUID());
+      const paths = Array.from(new Set(prepared.tasks.map(task => task.fields.filePath)));
+      const source = data.taskItem.fields.filePath;
+      paths.sort((a, b) => Number(a === source) - Number(b === source));
+      // Preflight every affected card before writing any anchors.
+      for (const path of paths) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!(file instanceof TFile)) throw new Error('A task note no longer exists.');
+        validateSnapshots(await this.app.vault.read(file), prepared.tasks.filter(task => task.fields.filePath === path));
+      }
+      for (const path of paths) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (!(file instanceof TFile)) throw new Error('A task note no longer exists.');
+        await this.app.vault.process(file, markdown => {
+          const tasks = prepared.tasks.filter(task => task.fields.filePath === path);
+          validateSnapshots(markdown, tasks);
+          let replacements = prepared.replacements.filter((_, index) => prepared.tasks[index].fields.filePath === path);
+          if (moving && path === source) {
+            const inherited = this.liveInheritedTags(markdown);
+            const moved = moveReplacements(data.taskItem, board.columns, column, inherited);
+            if (!boardAllowsTask(board, path, [...inherited, ...lineTags(moved[0].newText)], moved.slice(1).flatMap(change => [...inherited, ...lineTags(change.newText)]))) {
+              throw new Error('Moving this card would hide it because of the board filters.');
+            }
+            const anchor = replacements.find(change => change.lineNumber === data.taskItem.fields.lineNumber)!;
+            moved[0].newText = withBlockId(moved[0].newText, () => blockId(anchor.newText)!.replace(/^cb-/, ''));
+            replacements = [...replacements.filter(change => !moved.some(other => other.lineNumber === change.lineNumber)), ...moved];
+          }
+          return applyTaskReplacements(markdown, replacements);
+        });
+      }
+      const current = this.settings();
+      if (this.boardConfig(data.boardIndex)?.name !== board.name) throw new Error('Board settings changed. Try ordering again.');
+      const cardOrder = (current.data.globalSettings.cardOrder || []).filter(order => order.board !== board.name || order.column !== column.data.name);
+      cardOrder.push({ board: board.name, column: column.data.name, tasks: prepared.order });
+      await this.saveSettings({ ...current, data: { ...current.data, globalSettings: { ...current.data.globalSettings, cardOrder } } });
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : 'Could not reorder card.');
+    }
   }
 
   async moveCard(data: CardLocation & BoardLocation) {

@@ -57,7 +57,7 @@ test('board creation appends a tagged task with deadline, duration and urgency t
   const state = fixture();
   state.actions.createCard({ boardIndex: 0, columnIndex: 0 });
   await mockSaves[0].save('Tasks.md', 'New work', 'due 31-12-26', { duration: '1.5', unit: 'd', urgent: true });
-  expect(state.markdown()).toContain('\r\n\r\n- [ ] New work due 31-12-26 @estimate(1.5d) @urgent #status/todo\r\n');
+  expect(state.markdown()).toContain('\r\n\r\n- [ ] New work due 31-12-26 @takes(1.5d) @urgent #status/todo\r\n');
 });
 
 test('creation rejects an invalid date and an escaping note path without writing', async () => {
@@ -96,7 +96,7 @@ test('live inherited tags block an unsafe move even when the metadata cache is s
 test('assignment saves both task metadata and the shared person colour', async () => {
   const state = fixture();
   state.actions.assignCard({ boardIndex: 0, taskItem: state.task });
-  await mockSaves[0].save('Alex Smith', '#112233');
+  await mockSaves[0].save([{ name: 'Alex Smith', color: '#112233' }]);
   expect(state.markdown()).toContain('@assigned(Alex Smith)');
   expect(state.settings().data.globalSettings.people).toEqual([{ name: 'Alex Smith', color: '#112233' }]);
 });
@@ -105,11 +105,37 @@ test('editing planning fields persists an estimate and urgent flag on the task',
   const state = fixture();
   state.actions.editPlanning({ boardIndex: 0, taskItem: state.task });
   await mockSaves[0].save({ duration: '2.5', unit: 'h', urgent: true });
-  expect(state.markdown()).toContain('@estimate(2.5h) @urgent');
+  expect(state.markdown()).toContain('@takes(2.5h) @urgent');
 });
 
 test('date validation agrees with leap-year and omitted-year rules', () => {
   expect(validPlainDue('due 29-02', 2024)).toBe(true);
   expect(validPlainDue('due 29-02', 2026)).toBe(false);
   expect(validPlainDue('due 31-12-27', 2026)).toBe(true);
+});
+
+test('multiple assignment saves all markers and each shared colour', async () => {
+  const state = fixture();
+  state.actions.assignCard({ boardIndex: 0, taskItem: state.task });
+  const people = [{ name: 'Alex', color: '#112233' }, { name: 'Sam', color: '#aabbcc' }];
+  await mockSaves[0].save(people);
+  expect(state.markdown()).toContain('@assigned(Alex) @assigned(Sam)');
+  expect(state.settings().data.globalSettings.people).toEqual(people);
+});
+
+test('manual ordering persists stable note anchors without rearranging source lines', async () => {
+  Object.defineProperty(globalThis, 'crypto', { configurable: true, value: { randomUUID: () => 'stable-id' } });
+  const state = fixture();
+  await state.actions.reorderCard({ boardIndex: 0, sourceColumnIndex: 0, columnIndex: 0, taskItem: state.task, beforeTask: null, columnTasks: [state.task] });
+  expect(mockNotices).toEqual([]);
+  expect(state.markdown()).toBe('# Tasks\r\n- [ ] Work #status/todo ^cb-stable-id\r\n');
+  expect(state.settings().data.globalSettings.cardOrder).toEqual([{ board: 'Team', column: 'Todo', tasks: ['Tasks.md#^cb-stable-id'] }]);
+});
+
+test('stale ordering does not write anchors or save an order', async () => {
+  const state = fixture(); state.replace('- [ ] Changed by another editor\n');
+  await state.actions.reorderCard({ boardIndex: 0, sourceColumnIndex: 0, columnIndex: 0, taskItem: state.task, beforeTask: null, columnTasks: [state.task] });
+  expect(state.markdown()).toBe('- [ ] Changed by another editor\n');
+  expect(state.settings().data.globalSettings.cardOrder).toBeUndefined();
+  expect(mockNotices[0]).toContain('changed');
 });

@@ -1,5 +1,48 @@
 # Test and revision record
 
+## Release 0.9.0 - 2026-10-30
+
+All requested features are implemented. Actual time uses `@spent(...)`; estimates remain in `@takes(...)`, with legacy `@estimate(...)` input supported. Killian's actual hours are his own, not divided for shared tasks. Dismissing his popup records the estimate, or 1 hour if absent. Shared estimates and scheduled workloads are divided equally. The assignment dropdown receives current assignees across the full vault, including people defined directly in note tags.
+
+### Test and revision rounds
+
+1. The initial extension round passed 1,686 Elm tests and 59 TypeScript tests. Corrected old expectations to use `@takes(...)`, preserved legacy estimates, and added stable ordering and shared-person metadata.
+2. The completion and scheduling round passed 1,690 Elm tests and 66 TypeScript tests. Verified Killian's estimate preservation, own-hours accounting, dismissal defaults, cumulative comparison, independent shared scheduling and full-vault activity arithmetic. Browser revisions corrected coordinate targeting and assertions that had accidentally included icon polygons.
+3. The efficiency review and final round passed **1,691 Elm tests** and **70 TypeScript tests**. TypeScript checking, the compiled browser interaction suite and the production build passed. The production-bundle browser test exercises the actual embedded worker against a fixture vault, verifies zero note reads before opening CardBoard, then verifies all 32 notes are read and all 32 tasks are delivered. Separate background tests parse 2,000 tasks while UI timers continue running, with no per-note startup `tasksAdded` messages.
+
+Browser checks cover mouse and CDP touch input, within-column ordering, cross-column hashtag updates, stable anchors and restored order after reload, two/three/four-person colour geometry, deadline borders, current-assignee quick selection, person filters, completion entry/Cancel/backdrop/Escape, activity totals and heatmap selection, Killian's two cumulative series, week navigation and a narrow viewport.
+
+### Efficiency review: findings and fixes
+
+- **UI-thread parsing:** Elm's `Platform.worker` was running inside the main renderer rather than a browser Worker. Parsing now runs in a real Web Worker, embedded in `main.js` as source text. Installation still requires only the usual three runtime files.
+- **Unnecessary startup indexing:** startup previously read notes even when CardBoard was closed. Controls now register immediately and indexing starts on first board opening or workspace restoration. Parsed data is reused for the Obsidian session.
+- **Development-mode production output:** production Elm compilation now uses `optimize: true`. Profiling the previous output found heavy character/equality overhead in parser predicates.
+- **Repeated collection copies and updates:** initial tasks accumulate as chunks and flatten once; initial per-file messages are suppressed, and the first board snapshot is awaited explicitly. Chunked reads, worker barriers and debounced edits bound queued work. Changes during scanning are reconciled against current note text.
+- **Redundant presentation work:** inactive boards are not rendered; Markdown output is cached per element and hover handlers are registered once. Analytics aggregate tasks by day/person using dictionaries instead of scanning the full list for every calendar cell. Ordered-card lookup uses dictionary ranks and skips anchoring lookups when no manual order exists.
+- **Data correctness and lifecycle:** ordering survives line shifts and note/folder path changes; stale-note safeguards remain atomic. Deletion now uses exact atomic replacements. Startup edits, restored views and worker disposal have regression coverage. A person literally named Unassigned is no longer merged with unassigned tasks. Palette/order saves no longer rebuild unchanged command registrations.
+
+### Synthetic parser timing
+
+One controlled run on the same machine and synthetic input, ten top-level tasks per note. The baseline uses the previous worker accumulation and unoptimized compiler settings with the same task parser; the updated build uses chunked accumulation and optimized Elm. These are parser/index timings, excluding actual disk reads, board layout and Obsidian startup.
+
+| Notes | Tasks | Baseline | Updated |
+| --- | --- | --- | --- |
+| 250 | 2,500 | 1.829 s | 0.281 s |
+| 1,000 | 10,000 | 7.082 s | 0.865 s |
+| 2,000 | 20,000 | 14.249 s | 1.492 s |
+
+The 20,000-task case was about 9.6 times faster in this run. This is not a measurement of the user's vault, and timings vary with machine load. The startup adapter and production browser checks separately verify zero note reads when no board requests data. A restored/open board still requires a first full-vault scan.
+
+Reproduce updated parser timing after compiling `src/Worker.elm` with `--optimize --output=elm-stuff/worker-after.js`, then run `scripts/benchmark-index.cjs` with `BENCH_WORKER=elm-stuff/worker-after.js`. `BENCH_FILES` accepts a JSON list of note counts.
+
+Synthetic browser screenshots: [activity heatmap](images/activity.png), [Killian estimate feedback](images/estimate-feedback.png), [four-person card](images/shared-card.png).
+
+### Verification limits
+
+This was a focused review by the implementing assistant, not an independent human review. Browser tests use synthetic Markdown, a fixture vault, and simulated Obsidian API/modal primitives; the production test does load the actual optimized plugin bundle and its real embedded Worker. No physical touchscreen test or live-vault acceptance/performance measurement is claimed.
+
+## Previous release
+
 Release: 0.8.0. Verification date: 2026-10-28.
 
 These were automated tests and AI code/visual reviews. No human review or live Obsidian-vault acceptance test is claimed.

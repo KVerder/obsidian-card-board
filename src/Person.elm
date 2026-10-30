@@ -1,9 +1,11 @@
-module Person exposing (Person, colorAttributes, colorKey, defaultColor, foreground, parser)
+module Person exposing (Person, background, colorAttributes, colorKey, defaultColor, foreground, parser)
 
 import FNV1a
 import Html exposing (Attribute)
 import Html.Attributes exposing (attribute)
 import Parser as P exposing ((|.), (|=), Parser)
+import Svg
+import Svg.Attributes as SA
 
 
 type alias Person =
@@ -101,3 +103,27 @@ hexValue char =
 
     else
         Char.toCode (Char.toLower char) - Char.toCode 'a' + 10
+
+
+background : List String -> Html.Html msg
+background names =
+    let
+        zones =
+            case List.length names of
+                1 ->
+                    [ "0,0 100,0 100,100 0,100" ]
+
+                2 ->
+                    [ "0,0 100,0 100,100", "0,0 100,100 0,100" ]
+
+                3 ->
+                    [ "0,0 100,0 50,50", "0,0 50,50 50,100 0,100", "100,0 100,100 50,100 50,50" ]
+
+                4 ->
+                    [ "0,0 100,0 50,50", "100,0 100,100 50,50", "100,100 0,100 50,50", "0,100 0,0 50,50" ]
+
+                _ ->
+                    []
+    in
+    Svg.svg [ SA.viewBox "0 0 100 100", SA.preserveAspectRatio "none", SA.class "card-board-assignee-background", Html.Attributes.attribute "aria-hidden" "true" ]
+        (List.map2 (\name points -> Svg.polygon [ SA.points points, SA.fill ("var(" ++ colorKey name ++ ", " ++ defaultColor name ++ ")") ] []) names zones)

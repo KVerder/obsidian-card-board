@@ -148,7 +148,7 @@ updatePath oldPath newPath settings =
         updateFilters config =
             BoardConfig.mapFilters (Filter.updatePath oldPath newPath) config
     in
-    { settings | boardConfigs = SafeZipper.map updateFilters settings.boardConfigs }
+    { settings | boardConfigs = SafeZipper.map updateFilters settings.boardConfigs, globalSettings = updateOrderPaths oldPath newPath settings.globalSettings }
 
 
 
@@ -500,6 +500,7 @@ globalSettingsDefault =
     , taskCompletionInLocalTime = False
     , taskCompletionShowUtcOffset = False
     , people = []
+    , cardOrder = []
     }
 
 
@@ -515,3 +516,18 @@ setNamesToDefault settings =
             SafeZipper.map (BoardConfig.setNamesToDefault settings.globalSettings.defaultColumnNames)
                 settings.boardConfigs
     }
+
+
+updateOrderPaths oldPath newPath global =
+    let
+        rename key =
+            if String.startsWith (oldPath ++ "#^") key then
+                newPath ++ String.dropLeft (String.length oldPath) key
+
+            else if String.startsWith (oldPath ++ "/") key then
+                newPath ++ String.dropLeft (String.length oldPath) key
+
+            else
+                key
+    in
+    { global | cardOrder = List.map (\order -> { order | tasks = List.map rename order.tasks }) global.cardOrder }

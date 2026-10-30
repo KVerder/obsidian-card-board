@@ -17,6 +17,7 @@ module GlobalSettings exposing
     , v_0_9_0_decoder
     )
 
+import CardOrder
 import DefaultColumnNames exposing (DefaultColumnNames)
 import Filter exposing (Filter)
 import Json.Encode as JE
@@ -51,6 +52,7 @@ type alias GlobalSettings =
     , taskCompletionInLocalTime : Bool
     , taskCompletionShowUtcOffset : Bool
     , people : List Person
+    , cardOrder : List CardOrder.Order
     }
 
 
@@ -71,6 +73,7 @@ default =
     , taskCompletionInLocalTime = True
     , taskCompletionShowUtcOffset = True
     , people = []
+    , cardOrder = []
     }
 
 
@@ -89,6 +92,7 @@ encoder =
         , TsEncode.required "taskCompletionInLocalTime" .taskCompletionInLocalTime TsEncode.bool
         , TsEncode.required "taskCompletionShowUtcOffset" .taskCompletionShowUtcOffset TsEncode.bool
         , TsEncode.required "people" .people (TsEncode.list personEncoder)
+        , TsEncode.required "cardOrder" .cardOrder (TsEncode.list CardOrder.encoder)
         ]
 
 
@@ -103,6 +107,7 @@ v_0_13_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionInLocalTime" TsDecode.bool)
         |> TsDecode.andMap (TsDecode.field "taskCompletionShowUtcOffset" TsDecode.bool)
         |> TsDecode.andMap (TsDecode.oneOf [ TsDecode.field "people" (TsDecode.list personDecoder), TsDecode.succeed [] ])
+        |> TsDecode.andMap (TsDecode.oneOf [ TsDecode.field "cardOrder" (TsDecode.list CardOrder.decoder), TsDecode.succeed [] ])
 
 
 
@@ -132,6 +137,7 @@ v_0_12_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionInLocalTime" TsDecode.bool)
         |> TsDecode.andMap (TsDecode.field "taskCompletionShowUtcOffset" TsDecode.bool)
         |> TsDecode.andMap (TsDecode.succeed [])
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_11_0_decoder : TsDecode.Decoder GlobalSettings
@@ -144,6 +150,7 @@ v_0_11_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
         |> TsDecode.andMap (TsDecode.succeed [])
 
 
@@ -158,6 +165,7 @@ v_0_10_0_decoder =
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed [])
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_9_0_decoder : TsDecode.Decoder GlobalSettings
@@ -170,6 +178,7 @@ v_0_9_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
         |> TsDecode.andMap (TsDecode.succeed [])
 
 
@@ -184,6 +193,7 @@ v_0_8_0_decoder =
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed [])
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_7_0_decoder : TsDecode.Decoder GlobalSettings
@@ -196,6 +206,7 @@ v_0_7_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskCompletionFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
         |> TsDecode.andMap (TsDecode.succeed [])
 
 
@@ -210,6 +221,7 @@ v_0_6_0_decoder =
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed [])
+        |> TsDecode.andMap (TsDecode.succeed [])
 
 
 v_0_5_0_decoder : TsDecode.Decoder GlobalSettings
@@ -222,6 +234,7 @@ v_0_5_0_decoder =
         |> TsDecode.andMap (TsDecode.field "taskUpdateFormat" taskCompletionFormatDecoder)
         |> TsDecode.andMap (TsDecode.succeed False)
         |> TsDecode.andMap (TsDecode.succeed False)
+        |> TsDecode.andMap (TsDecode.succeed [])
         |> TsDecode.andMap (TsDecode.succeed [])
 
 

@@ -7,11 +7,11 @@ import TaskItem exposing (TaskItem)
 
 
 type alias Placement =
-    { task : TaskItem, start : Float, hours : Float, late : Bool }
+    { task : TaskItem, person : String, start : Float, hours : Float, late : Bool }
 
 
 type alias Allocation =
-    { task : TaskItem, date : Date, hours : Float, late : Bool }
+    { task : TaskItem, person : String, date : Date, hours : Float, late : Bool }
 
 
 type alias Plan =
@@ -32,18 +32,18 @@ plan today tasks =
 
         groups =
             List.foldl
-                (\task -> Dict.update (TaskItem.assignee task |> Maybe.withDefault "" |> String.toLower) (\group -> Just (task :: Maybe.withDefault [] group)))
+                (\task groups_ -> List.foldl (\person -> Dict.update (String.toLower person) (\group -> Just (( person, task ) :: Maybe.withDefault [] group))) groups_ (TaskItem.assignees task))
                 Dict.empty
                 ready
 
         schedulePerson personTasks =
             personTasks
-                |> List.sortBy priority
+                |> List.sortBy (Tuple.second >> priority)
                 |> List.foldl
-                    (\task ( cursor, scheduled ) ->
+                    (\( person, task ) ( cursor, scheduled ) ->
                         let
                             hours =
-                                TaskItem.estimateHours task |> Maybe.withDefault 0
+                                (TaskItem.estimateHours task |> Maybe.withDefault 0) / toFloat (List.length (TaskItem.assignees task))
 
                             finish =
                                 workdayAt today (ceiling ((cursor + hours) / 8) - 1)
@@ -51,7 +51,7 @@ plan today tasks =
                             late =
                                 TaskItem.due task |> Maybe.map (\due -> Date.toRataDie finish > Date.toRataDie due) |> Maybe.withDefault False
                         in
-                        ( cursor + hours, { task = task, start = cursor, hours = hours, late = late } :: scheduled )
+                        ( cursor + hours, { task = task, person = person, start = cursor, hours = hours, late = late } :: scheduled )
                     )
                     ( 0, [] )
                 |> Tuple.second
@@ -135,7 +135,7 @@ allocations today offset schedule =
                     min (placement.start + placement.hours) (toFloat (index + 1) * 8)
             in
             if index >= 0 && to - from > 0.000001 then
-                Just { task = placement.task, date = day, hours = to - from, late = placement.late }
+                Just { task = placement.task, person = placement.person, date = day, hours = to - from, late = placement.late }
 
             else
                 Nothing
@@ -147,7 +147,7 @@ allocations today offset schedule =
 
 allocationCard : String -> Allocation -> Card
 allocationCard boardId allocation =
-    Card.fromTaskItem (boardId ++ ":schedule:" ++ Date.toIsoString allocation.date) [] allocation.task
+    Card.fromTaskItem (boardId ++ ":schedule:" ++ String.toLower allocation.person ++ ":" ++ Date.toIsoString allocation.date) [] allocation.task
 
 
 cards : String -> Date -> Int -> Plan -> List Card

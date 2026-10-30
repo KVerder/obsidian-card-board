@@ -7,6 +7,8 @@ export class FileFilter {
     this.buildExcludes(filters);
   }
 
+  setFilters(filters: Filter[]) { this.buildExcludes(filters); }
+
   isAllowed(path: string): boolean {
     for (let elem of this.excludedPaths) {
       if (path.includes(elem)) return false;

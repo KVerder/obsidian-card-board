@@ -5,6 +5,7 @@ module Worker.Session exposing
     , default
     , finishAdding
     , fromFlags
+    , isLoading
     , removeTaskItems
     , replaceTaskList
     , taskList
@@ -27,6 +28,7 @@ type Session
 
 type alias Model =
     { dataviewTaskCompletion : DataviewTaskCompletion
+    , pending : List TaskList
     , taskList : State TaskList
     }
 
@@ -39,6 +41,7 @@ default : Session
 default =
     Session
         { dataviewTaskCompletion = DataviewTaskCompletion.default
+        , pending = []
         , taskList = State.Waiting
         }
 
@@ -47,6 +50,7 @@ fromFlags : InteropDefinitions.Flags -> Session
 fromFlags flags =
     Session
         { dataviewTaskCompletion = flags.dataviewTaskCompletion
+        , pending = []
         , taskList = State.Waiting
         }
 
@@ -67,7 +71,7 @@ taskList (Session model) =
             TaskList.empty
 
         State.Loading currentList ->
-            currentList
+            TaskList.concat (currentList :: List.reverse model.pending)
 
         State.Loaded currentList ->
             currentList
@@ -81,13 +85,23 @@ addTaskList : TaskList -> Session -> Session
 addTaskList list ((Session model) as session) =
     case model.taskList of
         State.Waiting ->
-            updateTaskListState (State.Loading list) session
+            Session { model | taskList = State.Loading TaskList.empty, pending = [ list ] }
 
-        State.Loading currentList ->
-            updateTaskListState (State.Loading (TaskList.append currentList list)) session
+        State.Loading _ ->
+            Session { model | pending = list :: model.pending }
 
         State.Loaded currentList ->
             updateTaskListState (State.Loaded (TaskList.append currentList list)) session
+
+
+isLoading : Session -> Bool
+isLoading (Session model) =
+    case model.taskList of
+        State.Loaded _ ->
+            False
+
+        _ ->
+            True
 
 
 finishAdding : Session -> Session
@@ -96,8 +110,8 @@ finishAdding ((Session config) as session) =
         State.Waiting ->
             updateTaskListState (State.Loaded TaskList.empty) session
 
-        State.Loading list ->
-            updateTaskListState (State.Loaded list) session
+        State.Loading _ ->
+            updateTaskListState (State.Loaded (taskList session)) session
 
         State.Loaded _ ->
             session
@@ -109,8 +123,8 @@ removeTaskItems taskIds ((Session config) as session) =
         State.Waiting ->
             session
 
-        State.Loading currentList ->
-            updateTaskListState (State.Loading (TaskList.filter (\i -> not <| List.member (TaskItem.id i) taskIds) currentList)) session
+        State.Loading _ ->
+            updateTaskListState (State.Loading (TaskList.filter (\i -> not <| List.member (TaskItem.id i) taskIds) (taskList session))) session
 
         State.Loaded currentList ->
             updateTaskListState (State.Loaded (TaskList.filter (\i -> not <| List.member (TaskItem.id i) taskIds) currentList)) session
@@ -135,4 +149,4 @@ replaceTaskList newList ((Session config) as session) =
 
 updateTaskListState : State TaskList -> Session -> Session
 updateTaskListState taskListState (Session model) =
-    Session { model | taskList = taskListState }
+    Session { model | taskList = taskListState, pending = [] }

@@ -32,7 +32,7 @@ type Tag = {
 type Word =
   { tag : "Word", data : string }
 
-type Content = AutoComplete | Completion | Due | Tag | Word | { tag: "AssignedTag"; data: string } | { tag: "EstimateTag"; data: number } | { tag: "UrgentTag" };
+type Content = AutoComplete | Completion | Due | Tag | Word | { tag: "AssignedTag"; data: string } | { tag: "ActualTag"; data: number } | { tag: "EstimateTag"; data: number } | { tag: "UrgentTag" };
 
 export type TaskItemFields = {
   autoComplete : AutoCompleteTag;
@@ -134,6 +134,7 @@ export type CardBoardPluginSettingsPostV11 = {
       taskCompletionInLocalTime : boolean;
       taskCompletionShowUtcOffset : boolean;
       people : { name: string; color: string }[];
+      cardOrder : { board: string; column: string; tasks: string[] }[];
     }
   };
   version : string

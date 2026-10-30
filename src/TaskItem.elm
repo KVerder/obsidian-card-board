@@ -5,9 +5,11 @@ module TaskItem exposing
     , Content
     , TaskItem
     , TaskItemFields
+    , actualHours
     , allSubtasksWithMatchingTagCompleted
     , asSingleTaskItems
     , assignee
+    , assignees
     , compare
     , completedPosix
     , completion
@@ -112,7 +114,8 @@ type Completion
 
 
 type Content
-    = EstimateTag Float
+    = ActualTag Float
+    | EstimateTag Float
     | UrgentTag
     | AssignedTag String
     | AutoCompleteTag AutoCompletion
@@ -836,6 +839,9 @@ taskItemFieldsBuilder startOffset startColumn path frontMatterTags bodyOffset ro
         extractContents : Content -> TaskItemFields -> TaskItemFields
         extractContents content fields_ =
             case content of
+                ActualTag _ ->
+                    fields_
+
                 EstimateTag _ ->
                     fields_
 
@@ -924,7 +930,8 @@ toggleCompletion timeWithZone (TaskItem fields_ subtasks_) =
 tokenParser : Maybe Int -> DataviewTaskCompletion -> Parser Content
 tokenParser currentYear dataviewTaskCompletion =
     P.oneOf
-        [ P.backtrackable <| P.map EstimateTag TaskEstimate.parser
+        [ P.backtrackable <| P.map ActualTag TaskEstimate.spentParser
+        , P.backtrackable <| P.map EstimateTag TaskEstimate.parser
         , P.backtrackable <| (P.succeed UrgentTag |. P.keyword "@urgent")
         , P.backtrackable <| P.map AssignedTag Person.parser
         , P.backtrackable <| P.map DueTag (PlainDueDate.parser currentYear)
@@ -1006,7 +1013,8 @@ completionEncoder =
 contentDecoder : TsDecode.Decoder Content
 contentDecoder =
     TsDecode.oneOf
-        [ DecodeHelpers.toElmVariant "EstimateTag" EstimateTag TsDecode.float
+        [ DecodeHelpers.toElmVariant "ActualTag" ActualTag TsDecode.float
+        , DecodeHelpers.toElmVariant "EstimateTag" EstimateTag TsDecode.float
         , DecodeHelpers.toElmVariant0 "UrgentTag" UrgentTag
         , DecodeHelpers.toElmVariant "AssignedTag" AssignedTag TsDecode.string
         , DecodeHelpers.toElmVariant "AutoCompleteTag" AutoCompleteTag autoCompletionDecoder
@@ -1020,8 +1028,11 @@ contentDecoder =
 contentEncoder : TsEncode.Encoder Content
 contentEncoder =
     TsEncode.union
-        (\vEstimateTag vUrgentTag vAssignedTag vAutoCompleteTag vCompletedTag vDueTag vObsidianTag vWord value ->
+        (\vActualTag vEstimateTag vUrgentTag vAssignedTag vAutoCompleteTag vCompletedTag vDueTag vObsidianTag vWord value ->
             case value of
+                ActualTag hours ->
+                    vActualTag hours
+
                 EstimateTag hours ->
                     vEstimateTag hours
 
@@ -1046,6 +1057,7 @@ contentEncoder =
                 Word word ->
                     vWord word
         )
+        |> TsEncode.variantTagged "ActualTag" TsEncode.float
         |> TsEncode.variantTagged "EstimateTag" TsEncode.float
         |> TsEncode.variant0 "UrgentTag"
         |> TsEncode.variantTagged "AssignedTag" TsEncode.string
@@ -1128,7 +1140,13 @@ topLevelTaskHasThisTag tagToMatch =
 
 assignee : TaskItem -> Maybe String
 assignee taskItem =
+    List.head (assignees taskItem)
+
+
+assignees : TaskItem -> List String
+assignees taskItem =
     (fields taskItem).contents
+        |> List.reverse
         |> List.filterMap
             (\content ->
                 case content of
@@ -1138,7 +1156,18 @@ assignee taskItem =
                     _ ->
                         Nothing
             )
-        |> List.head
+        |> List.map String.trim
+        |> List.filter (not << String.isEmpty)
+        |> List.foldl
+            (\name names ->
+                if List.member (String.toLower name) (List.map String.toLower names) then
+                    names
+
+                else
+                    names ++ [ name ]
+            )
+            []
+        |> List.take 4
 
 
 estimateHours : TaskItem -> Maybe Float
@@ -1159,3 +1188,18 @@ estimateHours taskItem =
 isUrgent : TaskItem -> Bool
 isUrgent taskItem =
     List.member UrgentTag (fields taskItem).contents
+
+
+actualHours : TaskItem -> Maybe Float
+actualHours task =
+    (fields task).contents
+        |> List.filterMap
+            (\content ->
+                case content of
+                    ActualTag value ->
+                        Just value
+
+                    _ ->
+                        Nothing
+            )
+        |> List.head

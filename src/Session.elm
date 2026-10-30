@@ -5,6 +5,7 @@ module Session exposing
     , ViewOptions
     , addTaskList
     , boardConfigs
+    , boardTaskList
     , cards
     , changeScheduleWeek
     , dataviewTaskCompletion
@@ -41,6 +42,7 @@ module Session exposing
     , timeWithZoneIs
     , toggleSmartSchedule
     , uniqueId
+    , updateActivity
     , updateColumnCollapse
     , updatePath
     , updateSettings
@@ -50,15 +52,18 @@ module Session exposing
     , waitForDrag
     )
 
+import Activity
 import Board
 import BoardConfig exposing (BoardConfig)
 import Boards
 import Card exposing (Card)
+import Column
 import DataviewTaskCompletion exposing (DataviewTaskCompletion)
 import Date
 import DragAndDrop.BeaconPosition exposing (BeaconPosition)
 import DragAndDrop.DragData exposing (DragData)
 import DragAndDrop.DragTracker as DragTracker exposing (DragTracker)
+import Filter
 import GlobalSettings exposing (GlobalSettings, TaskCompletionFormat)
 import InteropDefinitions
 import List.Extra as LE
@@ -127,7 +132,7 @@ default =
             { time = Time.millisToPosix 0
             , zone = Time.customZone 0 []
             }
-        , viewOptions = { person = Nothing, smart = False, weekOffset = 0 }
+        , viewOptions = { person = Nothing, smart = False, weekOffset = 0, activity = { visible = False, hours = False, yearOffset = 0, selected = Nothing } }
         , uniqueId = "xXxXx"
         }
 
@@ -155,7 +160,7 @@ fromFlags flags =
             { time = Time.millisToPosix flags.now
             , zone = Time.customZone flags.zone []
             }
-        , viewOptions = { person = Nothing, smart = False, weekOffset = 0 }
+        , viewOptions = { person = Nothing, smart = False, weekOffset = 0, activity = { visible = False, hours = False, yearOffset = 0, selected = Nothing } }
         , uniqueId = flags.uniqueId
         }
 
@@ -180,10 +185,17 @@ cards ((Session config) as session) =
 
 normalCards : Session -> List Card
 normalCards ((Session config) as session) =
-    session
-        |> taskList
-        |> Boards.init config.uniqueId (Settings.boardConfigs config.settings)
-        |> Boards.cards (ignoreFileNameDates session) (TimeWithZone.toDate config.timeWithZone)
+    boardConfigs session
+        |> SafeZipper.current
+        |> Maybe.map
+            (\boardConfig ->
+                let
+                    board =
+                        Board.init config.uniqueId boardConfig (visibleTaskList session)
+                in
+                Board.columns (ignoreFileNameDates session) (TimeWithZone.toDate config.timeWithZone) board |> List.concatMap (Column.cards (Board.id board))
+            )
+        |> Maybe.withDefault []
 
 
 dataviewTaskCompletion : Session -> DataviewTaskCompletion
@@ -469,7 +481,7 @@ updateTaskListState taskListState (Session config) =
 
 
 type alias ViewOptions =
-    { person : Maybe String, smart : Bool, weekOffset : Int }
+    { person : Maybe String, smart : Bool, weekOffset : Int, activity : Activity.Options }
 
 
 viewOptions : Session -> ViewOptions
@@ -492,7 +504,7 @@ toggleSmartSchedule (Session config) =
         options =
             config.viewOptions
     in
-    Session { config | viewOptions = { options | smart = not options.smart } }
+    Session { config | viewOptions = { options | smart = not options.smart, activity = hideActivity options.activity } }
 
 
 changeScheduleWeek : Int -> Session -> Session
@@ -508,10 +520,31 @@ visibleTaskList : Session -> TaskList
 visibleTaskList session =
     case (viewOptions session).person of
         Nothing ->
-            taskList session
+            boardTaskList session
 
         Just person ->
-            TaskList.filter (\task -> Maybe.map String.toLower (TaskItem.assignee task) == Just (String.toLower person)) (taskList session)
+            TaskList.filter (\task -> List.member (String.toLower person) (List.map String.toLower (TaskItem.assignees task))) (boardTaskList session)
+
+
+boardTaskList : Session -> TaskList
+boardTaskList session =
+    let
+        excluded task =
+            (globalSettings session).filters
+                |> List.any
+                    (\filter ->
+                        case filter of
+                            Filter.FileFilter path ->
+                                String.contains path (TaskItem.filePath task)
+
+                            Filter.PathFilter path ->
+                                String.contains (path ++ "/") (TaskItem.filePath task)
+
+                            Filter.TagFilter _ ->
+                                False
+                    )
+    in
+    TaskList.filter (not << excluded) (taskList session)
 
 
 scheduleBoardId : Session -> String
@@ -523,6 +556,33 @@ schedulePlan : Session -> SmartSchedule.Plan
 schedulePlan session =
     boardConfigs session
         |> SafeZipper.current
-        |> Maybe.map (\config -> Board.init (uniqueId session) config (visibleTaskList session) |> Board.tasks (ignoreFileNameDates session) |> TaskList.topLevelTasks)
+        |> Maybe.map (\config -> Board.init (uniqueId session) config (boardTaskList session) |> Board.tasks (ignoreFileNameDates session) |> TaskList.topLevelTasks)
         |> Maybe.withDefault []
         |> SmartSchedule.plan (TimeWithZone.toDate (timeWithZone session))
+        |> filterSchedulePerson (viewOptions session).person
+
+
+updateActivity : Activity.Msg -> Session -> Session
+updateActivity msg (Session config) =
+    let
+        options =
+            config.viewOptions
+    in
+    Session { config | viewOptions = { options | activity = Activity.update msg options.activity } }
+
+
+hideActivity activity =
+    { activity | visible = False }
+
+
+filterSchedulePerson person schedule =
+    case person of
+        Nothing ->
+            schedule
+
+        Just name ->
+            let
+                assigned task =
+                    List.member (String.toLower name) (List.map String.toLower (TaskItem.assignees task))
+            in
+            { schedule | placements = List.filter (\placement -> String.toLower placement.person == String.toLower name) schedule.placements, needsEstimate = List.filter assigned schedule.needsEstimate, needsAssignee = [] }

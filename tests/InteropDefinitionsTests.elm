@@ -114,6 +114,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = True
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -198,6 +199,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = True
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -282,6 +284,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -351,6 +354,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -420,6 +424,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -489,6 +494,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -558,6 +564,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -627,6 +634,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -696,6 +704,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -765,6 +774,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -834,6 +844,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -903,6 +914,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -972,6 +984,7 @@ flagsTests =
                                     , taskCompletionInLocalTime = False
                                     , taskCompletionShowUtcOffset = False
                                     , people = []
+                                    , cardOrder = []
                                     }
                                 }
                             , dataviewTaskCompletion = DataviewTaskCompletion.Text "completion"
@@ -1124,49 +1137,49 @@ toElmTests =
                 """{"tag":"settingsUpdated","data":{"version":"0.8.0","data":{"boardConfigs":[],"globalSettings":{"taskCompletionFormat":"ObsidianDataview","columnNames":{"today":"","tomorrow":"","future":"","undated":"","others":"","untagged":"","completed":""}}}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianDataview, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianDataview, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "decodes version 0.7.0 settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"0.7.0","data":{"boardConfigs":[],"globalSettings":{"taskCompletionFormat":"ObsidianDataview","columnNames":{"today":"","tomorrow":"","future":"","undated":"","others":"","untagged":"","completed":""}}}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianDataview, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianDataview, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "decodes version 0.6.0 settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"0.6.0","data":{"boardConfigs":[],"globalSettings":{"taskCompletionFormat":"ObsidianDataview"}}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianDataview, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianDataview, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "decodes version 0.5.0 settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"0.5.0","data":{"boardConfigs":[],"globalSettings":{"taskUpdateFormat":"ObsidianCardBoard"}}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "decodes version 0.4.0 settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"0.4.0","data":{"boardConfigs":[]}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "decodes version 0.3.0 settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"0.3.0","data":{"boardConfigs":[]}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "decodes version 0.2.0 settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"0.2.0","data":{"boardConfigs":[],"globalSettings":{"hideCompletedSubtasks":false,"ignorePaths":[],"subTaskDisplayLimit":null}}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "decodes version 0.1.0 settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"0.1.0","data":{"boardConfigs":[]}}}"""
                     |> DecodeHelpers.runDecoder interop.toElm
                     |> .decoded
-                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [] } })
+                    |> Expect.equal (Ok <| InteropDefinitions.SettingsUpdated { version = Semver.version 0 13 0 [] [], boardConfigs = SafeZipper.fromList [], globalSettings = { defaultColumnNames = DefaultColumnNames.default, filters = [], firstDayOfWeek = GlobalSettings.FromLocale, ignoreFileNameDates = False, taskCompletionFormat = GlobalSettings.ObsidianCardBoard, taskCompletionInLocalTime = False, taskCompletionShowUtcOffset = False, people = [], cardOrder = [] } })
         , test "fails to decode an unsupported version of settings data" <|
             \() ->
                 """{"tag":"settingsUpdated","data":{"version":"99999.0.0","data":{"boardConfigs":[]}}}"""

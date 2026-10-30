@@ -10,6 +10,7 @@ port module InteropPorts exposing
     , elmInitialized
     , moveCard
     , openTaskSourceFile
+    , reorderCard
     , requestFilterCandidates
     , rewriteTasks
     , showCardContextMenu
@@ -184,7 +185,7 @@ showMoveCardMenu info =
         |> interopFromElm
 
 
-assignCard : InteropDefinitions.CardLocation -> Cmd msg
+assignCard : InteropDefinitions.AssignLocation -> Cmd msg
 assignCard info =
     InteropDefinitions.AssignCard info
         |> TsEncode.encoder InteropDefinitions.interop.fromElm
@@ -194,3 +195,8 @@ assignCard info =
 editPlanning : InteropDefinitions.CardLocation -> Cmd msg
 editPlanning info =
     InteropDefinitions.EditPlanning info |> TsEncode.encoder InteropDefinitions.interop.fromElm |> interopFromElm
+
+
+reorderCard : InteropDefinitions.ReorderLocation -> Cmd msg
+reorderCard data =
+    InteropDefinitions.ReorderCard data |> TsEncode.encoder InteropDefinitions.interop.fromElm |> interopFromElm

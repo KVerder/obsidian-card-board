@@ -1,6 +1,6 @@
 # Obsidian CardBoard — people and smart scheduling
 
-Extended fork of roovo/obsidian-card-board. Adds board-side task creation, hashtag-based card moves, `due dd-mm-yy` / `due dd-mm`, assignees with shared editable colours, duration estimates, person tabs and a five-workday smart schedule.
+Extended fork of roovo/obsidian-card-board. Adds board-side task creation, hashtag-based card moves, `due dd-mm-yy` / `due dd-mm`, assignees with shared editable colours, duration estimates, person tabs and a five-workday smart schedule. Adds touch-friendly card ordering, up to four assignees per card, shared workload allocation, vault-wide completion graphs and activity heatmaps.
 
 **Install this fork:** follow [INSTALL.md](INSTALL.md) and use the release ZIP from this repository. The community listing still installs the original plugin.
 
@@ -10,7 +10,7 @@ The screenshot uses synthetic tasks in the browser verification fixture. See [VE
 
 
 ![License](https://img.shields.io/github/license/roovo/obsidian-card-board)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/roovo/obsidian-card-board?style=flat-square)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/KVerder/cardboardplus?style=flat-square)
 ![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22card-board%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)
 
 
@@ -23,13 +23,17 @@ An [Obsidian](https://obsidian.md/) plugin to make working with tasks a pleasure
   - Date based (with daily/periodic notes support).
   - Tag based (use `#tags` to define columns).
 
-## New
-- No new features: I have split out some of the internal workings in preparation
-  for drag and drop - hopefully managed this without introducing any bugs or
-  performance issues.
+## New in 0.9.0
+
+- Touch, mouse and pen card ordering within and between columns.
+- Up to four `@assigned(Person)` tags, with card colour regions for each person and a dropdown of current assignees across the vault.
+- Task durations in `@takes(4h)` or `@takes(1.5d)`, shared equally between assignees for scheduling and estimated-hours statistics.
+- Whole-vault completion charts, per-person filters and activity heatmaps.
+- Killian-only actual-time prompts using `@spent(2h)` and cumulative estimate-versus-actual feedback, while preserving the estimate.
+- Indexing starts when CardBoard opens, runs in an embedded background worker and uses production-optimized Elm. See [VERIFICATION.md](VERIFICATION.md) for measured results and limits.
 
 ## Installation
-Please install via the regular Community Plugins setting tab within Obsidian.
+Install this fork from its release ZIP using [INSTALL.md](INSTALL.md). The Community Plugins listing installs the upstream plugin.
 
 ![date based board screenshot](/images/dateBoard.png?raw=true)
 

@@ -1,9 +1,11 @@
 module Main exposing (Model, Msg, main)
 
+import Board
 import Boards
 import Browser
 import Browser.Events as Browser
 import Card exposing (Card)
+import Column
 import Date exposing (Date)
 import DragAndDrop.DragData exposing (DragData)
 import Filter exposing (Filter)
@@ -362,9 +364,17 @@ cmdForTaskRedraws taskList session =
                 Session.cards session
 
             else
-                taskList
-                    |> Boards.init (Session.uniqueId session) (Session.boardConfigs session)
-                    |> Boards.cards (Session.ignoreFileNameDates session) today
+                Session.boardConfigs session
+                    |> SafeZipper.current
+                    |> Maybe.map
+                        (\config ->
+                            let
+                                board =
+                                    Board.init (Session.uniqueId session) config taskList
+                            in
+                            Board.columns (Session.ignoreFileNameDates session) today board |> List.concatMap (Column.cards (Board.id board))
+                        )
+                    |> Maybe.withDefault []
     in
     if List.isEmpty cards then
         Cmd.none

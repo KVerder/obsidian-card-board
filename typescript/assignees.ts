@@ -4,7 +4,21 @@ export type Person = { name: string; color: string };
 const assignment = /(^|[ \t])@assigned\([^()\r\n]*\)/g;
 
 export function assigneeFromLine(line: string): string {
-  return /(?:^|[ \t])@assigned\(([^()\r\n]+)\)/.exec(line)?.[1].trim() || '';
+  return assigneesFromLine(line)[0] || '';
+}
+
+export function assigneesFromLine(line: string): string[] {
+  const names = Array.from(line.matchAll(/(?:^|[ \t])@assigned\(([^()\r\n]+)\)/g), match => match[1].trim());
+  return names.filter((name, index) => name && names.findIndex(other => other.toLowerCase() === name.toLowerCase()) === index).slice(0, 4);
+}
+
+export function assignPeopleLine(line: string, names: string[]): string {
+  names = names.map(name => name.trim()).filter(Boolean);
+  if (names.length > 4) throw new Error('Assign at most four people.');
+  if (new Set(names.map(name => name.toLowerCase())).size !== names.length) throw new Error('Choose each person only once.');
+  names.forEach(name => validatePerson(name, '#000000'));
+  const clean = line.replace(assignment, '$1').trimEnd();
+  return names.length ? insertBeforeBlockId(clean, names.map(name => '@assigned(' + name + ')').join(' ')) : clean;
 }
 
 export function validatePerson(name: string, color: string): void {
@@ -13,10 +27,7 @@ export function validatePerson(name: string, color: string): void {
 }
 
 export function assignLine(line: string, name: string): string {
-  name = name.trim();
-  validatePerson(name, '#000000');
-  const clean = line.replace(assignment, '$1').trimEnd();
-  return name ? insertBeforeBlockId(clean, '@assigned(' + name + ')') : clean;
+  return assignPeopleLine(line, [name]);
 }
 
 export function updatePeople(people: Person[], name: string, color: string): Person[] {

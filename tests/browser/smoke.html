@@ -38,7 +38,7 @@
     const tags={tasksAdded:'taskItemsAdded',tasksDeleted:'taskItemsDeleted',tasksUpdated:'taskItemsUpdated',tasksDeletedAndAdded:'taskItemsDeletedAndAdded',allTaskItems:'taskItemsRefreshed'};
     if(tags[message.tag])app.ports.interopToElm.send({tag:tags[message.tag],data:message.data});
   });
-  const markdown = '- [ ] Urgent long @assigned(Alex) @estimate(10h) @urgent due 28-10-26 #status/todo\n- [ ] Quick report @assigned(Alex) @estimate(1h) due 30-10-26 #status/todo\n- [ ] Sam job @assigned(Sam) @estimate(8h) due 30-10-26 #status/doing\n- [ ] Estimate me @assigned(Alex) #status/todo\n- [ ] Assign me @estimate(2h) #status/todo\n';
+  const markdown = '- [ ] Urgent long @assigned(Alex) @takes(10h) @urgent due 28-10-26 #status/todo\n- [ ] Quick report @assigned(Alex) @takes(1h) due 30-10-26 #status/todo\n- [ ] Sam job @assigned(Sam) @takes(8h) due 30-10-26 #status/doing\n- [ ] Estimate me @assigned(Alex) #status/todo\n- [ ] Assign me @takes(2h) #status/todo\n';
   worker.ports.interopToElm.send({tag:'fileAdded',data:{filePath:'Team.md',fileDate:null,currentYear:2026,fileContents:markdown}});
   worker.ports.interopToElm.send({tag:'allMarkdownLoaded',data:{}});
   worker.ports.interopToElm.send({tag:'viewInitialized'});
@@ -48,3 +48,5 @@
   window.testWorker=worker;
   window.testMarkdown=markdown;
 </script>
+
+<script src="/elm-stuff/smoke-bridge.js"></script>

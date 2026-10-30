@@ -8,10 +8,12 @@ module Page.Board exposing
     , view
     )
 
+import Activity
 import Board exposing (Board)
 import BoardConfig exposing (BoardConfig)
 import Boards exposing (Boards)
 import Card exposing (Card)
+import CardOrder
 import Column exposing (Column)
 import Columns
 import Date exposing (Date)
@@ -151,9 +153,11 @@ toSession model =
 
 
 type Msg
-    = CardDragStarted String
+    = ActivityChanged Activity.Msg
+    | CardDragStarted String
     | CardDragEnded
     | CardDropped Int
+    | CardDroppedAt { taskId : String, columnIndex : Int, sourceColumnIndex : Int, beforeTaskId : Maybe String }
     | AddCardClicked Int
     | MoveCardRequested String
     | AssignCardRequested String
@@ -193,6 +197,9 @@ columnDragType =
 update : Msg -> Model -> ( Model, Cmd Msg, Session.Msg )
 update msg model =
     case msg of
+        ActivityChanged activityMsg ->
+            redrawSession (Session.updateActivity activityMsg) model
+
         CardDragStarted taskId ->
             ( DraggingCard taskId (toSession model), Cmd.none, Session.NoOp )
 
@@ -203,6 +210,28 @@ update msg model =
 
                 _ ->
                     ( model, Cmd.none, Session.NoOp )
+
+        CardDroppedAt data ->
+            let
+                session =
+                    toSession model
+
+                tasks =
+                    Session.taskFromId data.taskId session
+
+                config =
+                    Session.boardConfigs session |> SafeZipper.current
+
+                columns =
+                    config |> Maybe.map (\board -> Board.init (Session.uniqueId session) board (Session.boardTaskList session) |> Board.columns (Session.ignoreFileNameDates session) (TimeWithZone.toDate (Session.timeWithZone session))) |> Maybe.withDefault []
+
+                columnTasks =
+                    columns |> List.drop data.columnIndex |> List.head |> Maybe.map (\column -> Column.cards "order" column |> CardOrder.sort (Session.globalSettings session).cardOrder (config |> Maybe.map BoardConfig.name |> Maybe.withDefault "") (Column.name column) |> List.map Card.taskItem) |> Maybe.withDefault []
+            in
+            ( ViewingBoard session
+            , tasks |> Maybe.map (\task -> InteropPorts.reorderCard { boardIndex = boardIndexForSession session, columnIndex = data.columnIndex, sourceColumnIndex = data.sourceColumnIndex, taskItem = task, beforeTask = data.beforeTaskId |> Maybe.andThen (\id_ -> Session.taskFromId id_ session), columnTasks = columnTasks }) |> Maybe.withDefault Cmd.none
+            , Session.NoOp
+            )
 
         CardDropped columnIndex ->
             case model of
@@ -243,7 +272,7 @@ update msg model =
         AssignCardRequested taskId ->
             ( model
             , Session.taskFromId taskId (toSession model)
-                |> Maybe.map (\taskItem -> InteropPorts.assignCard { boardIndex = boardIndexForSession (toSession model), taskItem = taskItem })
+                |> Maybe.map (\taskItem -> InteropPorts.assignCard { boardIndex = boardIndexForSession (toSession model), taskItem = taskItem, people = Session.taskList (toSession model) |> TaskList.topLevelTasks |> List.concatMap TaskItem.assignees |> LE.uniqueBy String.toLower |> List.sortBy String.toLower })
                 |> Maybe.withDefault Cmd.none
             , Session.NoOp
             )
@@ -381,10 +410,7 @@ update msg model =
             )
 
         TabSelected tabIndex ->
-            ( mapSession (Session.switchToBoardAt tabIndex) model
-            , Cmd.none
-            , Session.NoOp
-            )
+            redrawSession (Session.switchToBoardAt tabIndex) model
 
         TaskItemDeleteClicked title id ->
             ( deleteCardRequested title id model
@@ -693,6 +719,9 @@ boardsView session =
                 Session.timeWithZone session
                     |> TimeWithZone.toDate
 
+            orders =
+                (Session.globalSettings session).cardOrder |> List.map (\order -> { order | board = Session.uniqueId session ++ ":" ++ String.replace " " "_" order.board })
+
             isDragging : Bool
             isDragging =
                 Session.isDragging session && draggedType == Just tagHeaderDragType
@@ -739,7 +768,10 @@ boardsView session =
                     []
                 ]
             , boardControls session
-            , if (Session.viewOptions session).smart then
+            , if (Session.viewOptions session).activity.visible then
+                Html.Lazy.lazy5 Activity.view (Session.timeWithZone session).zone today (Session.viewOptions session).activity (Session.viewOptions session).person (Session.taskList session |> TaskList.topLevelTasks) |> Html.map ActivityChanged
+
+              else if (Session.viewOptions session).smart then
                 smartScheduleView session
 
               else
@@ -749,8 +781,8 @@ boardsView session =
                     ]
                     (Boards.boardZipper boards
                         |> SafeZipper.mapSelectedAndRest
-                            (keyedSelectedBoardView ignoreFileNameDates today dragTracker)
-                            (keyedBoardView ignoreFileNameDates today)
+                            (keyedSelectedBoardView orders ignoreFileNameDates today dragTracker)
+                            (\board -> ( Board.id board, Html.text "" ))
                         |> SafeZipper.toList
                     )
             ]
@@ -862,13 +894,13 @@ viewDraggedHeader isDragging session =
             empty
 
 
-keyedBoardView : Bool -> Date -> Board -> ( String, Html Msg )
-keyedBoardView ignoreFileNameDates today board =
-    ( Board.id board, Html.Lazy.lazy3 boardView ignoreFileNameDates today board )
+keyedBoardView : List CardOrder.Order -> Bool -> Date -> Board -> ( String, Html Msg )
+keyedBoardView orders ignoreFileNameDates today board =
+    ( Board.id board, Html.Lazy.lazy4 boardView orders ignoreFileNameDates today board )
 
 
-boardView : Bool -> Date -> Board -> Html Msg
-boardView ignoreFileNameDates today board =
+boardView : List CardOrder.Order -> Bool -> Date -> Board -> Html Msg
+boardView orders ignoreFileNameDates today board =
     Html.div
         [ class "card-board-board"
         , hidden True
@@ -877,18 +909,18 @@ boardView ignoreFileNameDates today board =
             [ class "card-board-columns" ]
             (board
                 |> Board.columns ignoreFileNameDates today
-                |> List.indexedMap (\index column -> keyedColumnView Nothing (Board.id board) index today column)
+                |> List.indexedMap (\index column -> keyedColumnView orders Nothing (Board.id board) index today column)
             )
         ]
 
 
-keyedSelectedBoardView : Bool -> Date -> DragTracker -> Board -> ( String, Html Msg )
-keyedSelectedBoardView ignoreFileNameDates today dragTracker board =
-    ( Board.id board, Html.Lazy.lazy4 selectedBoardView ignoreFileNameDates today dragTracker board )
+keyedSelectedBoardView : List CardOrder.Order -> Bool -> Date -> DragTracker -> Board -> ( String, Html Msg )
+keyedSelectedBoardView orders ignoreFileNameDates today dragTracker board =
+    ( Board.id board, Html.Lazy.lazy5 selectedBoardView orders ignoreFileNameDates today dragTracker board )
 
 
-selectedBoardView : Bool -> Date -> DragTracker -> Board -> Html Msg
-selectedBoardView ignoreFileNameDates today dragTracker board =
+selectedBoardView : List CardOrder.Order -> Bool -> Date -> DragTracker -> Board -> Html Msg
+selectedBoardView orders ignoreFileNameDates today dragTracker board =
     let
         draggedColumn : Maybe Column
         draggedColumn =
@@ -917,7 +949,7 @@ selectedBoardView ignoreFileNameDates today dragTracker board =
             [ class "card-board-columns" ]
             ((board
                 |> Board.columns ignoreFileNameDates today
-                |> List.indexedMap (\index column -> keyedColumnView draggedUniqueId (Board.id board) index today column)
+                |> List.indexedMap (\index column -> keyedColumnView orders draggedUniqueId (Board.id board) index today column)
              )
                 |> (\cs ->
                         List.append cs
@@ -974,15 +1006,15 @@ columnGhostView boardId today isDragging dragTracker draggedColumn =
             Html.text ""
 
 
-keyedColumnView : Maybe String -> String -> Int -> Date -> Column -> ( String, Html Msg )
-keyedColumnView draggedId boardId columnIndex today column =
+keyedColumnView : List CardOrder.Order -> Maybe String -> String -> Int -> Date -> Column -> ( String, Html Msg )
+keyedColumnView orders draggedId boardId columnIndex today column =
     ( boardId ++ ":" ++ Column.name column
-    , Html.Lazy.lazy5 columnView draggedId boardId columnIndex today column
+    , Html.Lazy.lazy6 columnView orders draggedId boardId columnIndex today column
     )
 
 
-columnView : Maybe String -> String -> Int -> Date -> Column -> Html Msg
-columnView draggedId boardId columnIndex today column =
+columnView : List CardOrder.Order -> Maybe String -> String -> Int -> Date -> Column -> Html Msg
+columnView orders draggedId boardId columnIndex today column =
     let
         domId : String
         domId =
@@ -1001,6 +1033,15 @@ columnView draggedId boardId columnIndex today column =
     in
     Html.div
         [ class "card-board-column-with-beacons"
+        , attribute "data-card-column-index" (String.fromInt columnIndex)
+        , attribute "data-card-can-move"
+            (if canMoveTo column then
+                "true"
+
+             else
+                "false"
+            )
+        , on "cardboard-drop" (JD.field "detail" (JD.map4 (\taskId sourceColumnIndex columnIndex_ beforeTaskId -> CardDroppedAt { taskId = taskId, sourceColumnIndex = sourceColumnIndex, columnIndex = columnIndex_, beforeTaskId = beforeTaskId }) (JD.field "taskId" JD.string) (JD.field "sourceColumnIndex" JD.int) (JD.field "columnIndex" JD.int) (JD.field "beforeTaskId" (JD.nullable JD.string))))
         , attributeIf (canMoveTo column) (preventDefaultOn "dragover" (JD.succeed ( CardMouseDown, True )))
         , attributeIf (canMoveTo column) (preventDefaultOn "drop" (JD.succeed ( CardDropped columnIndex, True )))
         ]
@@ -1032,7 +1073,7 @@ columnView draggedId boardId columnIndex today column =
                     [ Html.text <| columnCountString column ]
                 ]
             , Html.Keyed.ul [ class "card-board-column-list" ]
-                (List.map (cardView today) (Column.cards boardId column))
+                (Column.cards boardId column |> CardOrder.sort orders boardId (Column.name column) |> List.map (cardView today))
             , Html.button
                 [ class "card-board-add-card"
                 , onClick (AddCardClicked columnIndex)
@@ -1089,7 +1130,8 @@ cardView today card =
         , attribute "data-assignee" (TaskItem.assignee taskItem |> Maybe.withDefault "")
         , attributeIf (not <| String.isEmpty dataTags) (attribute "data-tags" dataTags)
         , stopPropagationOn "mousedown" (JD.succeed ( CardMouseDown, True ))
-        , attribute "draggable" "true"
+        , attribute "data-task-id" taskItemId
+        , attribute "draggable" "false"
         , on "dragstart" (JD.succeed (CardDragStarted taskItemId))
         , on "dragend" (JD.succeed CardDragEnded)
         , onContextMenu <| CardRightMouseDown (Card.id card)
@@ -1097,49 +1139,51 @@ cardView today card =
         [ Html.div [ class ("card-board-card-highlight-area " ++ highlightAreaClass) ]
             []
         , Html.div
-            ([ class "card-board-card-content-area" ]
-                ++ (TaskItem.assignee taskItem
-                        |> Maybe.map
-                            (\name ->
-                                [ style "background-color" ("var(" ++ Person.colorKey name ++ ", " ++ Person.defaultColor name ++ ")")
-                                , style "color" ("var(" ++ Person.colorKey name ++ "-foreground, #17212b)")
-                                ]
-                            )
-                        |> Maybe.withDefault []
-                   )
-            )
-            [ Html.input
-                [ type_ "checkbox"
-                , class "task-list-item-checkbox"
-                , onClick <| TaskItemToggled taskItemId
-                , checked <| TaskItem.isCompleted taskItem
-                ]
-                []
-            , Html.div [ class "card-board-card-title", id cardId ]
-                []
-            , TaskItem.assignee taskItem
-                |> Maybe.map (\name -> Html.button [ class "card-board-assignee", onClick (AssignCardRequested taskItemId), attribute "title" "Change assignee or colour" ] [ Html.text name ])
-                |> Maybe.withDefault (Html.text "")
-            , Html.div [ class "card-board-task-meta" ]
-                [ TaskItem.estimateHours taskItem |> Maybe.map (\hours -> Html.span [] [ Html.text (String.fromFloat hours ++ "h estimated") ]) |> Maybe.withDefault (Html.text "")
-                , if TaskItem.isUrgent taskItem then
-                    Html.strong [ class "card-board-urgent" ] [ Html.text "Urgent" ]
+            [ class "card-board-card-content-area"
+            , style "color"
+                (if List.length (TaskItem.assignees taskItem) == 1 then
+                    TaskItem.assignee taskItem |> Maybe.map (\name -> "var(" ++ Person.colorKey name ++ "-foreground, #17212b)") |> Maybe.withDefault "inherit"
 
-                  else
-                    Html.text ""
-                ]
-            , cardTagsView (Card.tagsId card)
-                |> when (TaskItem.hasTags taskItem)
-            , subtasksView (Card.descendantTasks card)
-                |> when (TaskItem.hasSubtasks taskItem)
-            , notesView (Card.notesId card)
-                |> when (TaskItem.hasNotes taskItem)
-            , Html.div [ class "card-board-card-footer-area" ]
-                [ taskDueDate today (TaskItem.due taskItem)
-                    |> when (TaskItem.isDated taskItem)
-                , cardActionButtons (Card.title card) taskItemId (Card.editButtonId card)
-                ]
+                 else
+                    "#111111"
+                )
+            , attribute "data-assignee-count" (String.fromInt (List.length (TaskItem.assignees taskItem)))
             ]
+            (Person.background (TaskItem.assignees taskItem)
+                :: [ Html.button [ class "card-board-drag-handle", attribute "data-card-drag-handle" "true", attribute "aria-label" "Drag to reorder or move card", attribute "title" "Drag to reorder or move card" ] [ Html.text "⠿" ]
+                   , Html.input
+                        [ type_ "checkbox"
+                        , class "task-list-item-checkbox"
+                        , onClick <| TaskItemToggled taskItemId
+                        , checked <| TaskItem.isCompleted taskItem
+                        ]
+                        []
+                   , Html.div [ class "card-board-card-title", id cardId ]
+                        []
+                   , Html.div [ class "card-board-assignees" ]
+                        (TaskItem.assignees taskItem |> List.map (\name -> Html.button [ class "card-board-assignee", onClick (AssignCardRequested taskItemId), attribute "title" "Change assignees or colours" ] [ Html.text name ]))
+                   , Html.div [ class "card-board-task-meta" ]
+                        [ TaskItem.estimateHours taskItem |> Maybe.map (\hours -> Html.span [] [ Html.text (String.fromFloat hours ++ "h estimated") ]) |> Maybe.withDefault (Html.text "")
+                        , TaskItem.actualHours taskItem |> Maybe.map (\hours -> Html.span [] [ Html.text (String.fromFloat hours ++ "h spent") ]) |> Maybe.withDefault (Html.text "")
+                        , if TaskItem.isUrgent taskItem then
+                            Html.strong [ class "card-board-urgent" ] [ Html.text "Urgent" ]
+
+                          else
+                            Html.text ""
+                        ]
+                   , cardTagsView (Card.tagsId card)
+                        |> when (TaskItem.hasTags taskItem)
+                   , subtasksView (Card.descendantTasks card)
+                        |> when (TaskItem.hasSubtasks taskItem)
+                   , notesView (Card.notesId card)
+                        |> when (TaskItem.hasNotes taskItem)
+                   , Html.div [ class "card-board-card-footer-area" ]
+                        [ taskDueDate today (TaskItem.due taskItem)
+                            |> when (TaskItem.isDated taskItem)
+                        , cardActionButtons (Card.title card) taskItemId (Card.editButtonId card)
+                        ]
+                   ]
+            )
         ]
         |> Tuple.pair cardId
 
@@ -1493,7 +1537,7 @@ boardControls session =
             Session.viewOptions session
 
         people =
-            Session.taskList session |> TaskList.topLevelTasks |> List.filterMap TaskItem.assignee |> LE.uniqueBy String.toLower |> List.sortBy String.toLower
+            Session.taskList session |> TaskList.topLevelTasks |> List.concatMap TaskItem.assignees |> LE.uniqueBy String.toLower |> List.sortBy String.toLower
 
         tab name person =
             Html.button
@@ -1512,6 +1556,15 @@ boardControls session =
     Html.div [ class "card-board-controls" ]
         [ Html.div [ class "card-board-person-tabs", attribute "role" "tablist", attribute "aria-label" "Filter by person" ]
             (tab "All people" Nothing :: List.map (\name -> tab name (Just name)) people)
+        , Html.button [ onClick (ActivityChanged Activity.ToggleView) ]
+            [ Html.text
+                (if options.activity.visible then
+                    "Back to board"
+
+                 else
+                    "Activity view"
+                )
+            ]
         , Html.button
             [ onClick SmartScheduleToggled
             , attribute "aria-pressed"
@@ -1567,7 +1620,7 @@ smartScheduleView session =
                     )
                 ]
                 [ Html.div [ class "card-board-allocation-summary" ]
-                    [ Html.text (String.fromFloat (toFloat (round (allocation.hours * 100)) / 100) ++ "h · " ++ Maybe.withDefault "" (TaskItem.assignee allocation.task))
+                    [ Html.text (String.fromFloat (toFloat (round (allocation.hours * 100)) / 100) ++ "h · " ++ allocation.person)
                     , if allocation.late then
                         Html.strong [] [ Html.text " · Scheduled after deadline" ]
 
