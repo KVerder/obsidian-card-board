@@ -10,6 +10,8 @@ All requested features are implemented. Actual time uses `@spent(...)`; estimate
 2. The completion and scheduling round passed 1,690 Elm tests and 66 TypeScript tests. Verified Killian's estimate preservation, own-hours accounting, dismissal defaults, cumulative comparison, independent shared scheduling and full-vault activity arithmetic. Browser revisions corrected coordinate targeting and assertions that had accidentally included icon polygons.
 3. The efficiency review and final round passed **1,691 Elm tests** and **70 TypeScript tests**. TypeScript checking, the compiled browser interaction suite and the production build passed. The production-bundle browser test exercises the actual embedded worker against a fixture vault, verifies zero note reads before opening CardBoard, then verifies all 32 notes are read and all 32 tasks are delivered. Separate background tests parse 2,000 tasks while UI timers continue running, with no per-note startup `tasksAdded` messages.
 
+The Linux CI browser check exposed a case-sensitive expectation for person labels; the assertion now checks the case-insensitive identities used by the plugin.
+
 Browser checks cover mouse and CDP touch input, within-column ordering, cross-column hashtag updates, stable anchors and restored order after reload, two/three/four-person colour geometry, deadline borders, current-assignee quick selection, person filters, completion entry/Cancel/backdrop/Escape, activity totals and heatmap selection, Killian's two cumulative series, week navigation and a narrow viewport.
 
 ### Efficiency review: findings and fixes

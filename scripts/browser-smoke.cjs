@@ -176,7 +176,8 @@ const assert = require('assert/strict');
     await page.getByRole('tab',{name:'All people',exact:true}).click();
     await page.locator('.card-board-card').filter({hasText:'Four people'}).getByRole('button',{name:'Assign person and colour',exact:true}).click();
     const peopleOptions=await page.getByLabel('Choose an assigned person').first().locator('option').evaluateAll(options=>options.map(option=>option.value));
-    assert.ok(peopleOptions.includes('Jo')&&peopleOptions.includes('Riley')&&peopleOptions.includes('Killian'));
+    const normalizedPeople=peopleOptions.map(name=>name.toLowerCase());
+    assert.ok(normalizedPeople.includes('jo')&&normalizedPeople.includes('riley')&&normalizedPeople.includes('killian'),JSON.stringify(peopleOptions));
     await page.getByRole('button',{name:'Cancel',exact:true}).click();
     const background = await page.evaluate(async()=>{
       const source=await(await fetch('/elm-stuff/smoke-worker.js')).text();
