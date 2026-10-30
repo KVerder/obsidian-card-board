@@ -175,6 +175,8 @@ const assert = require('assert/strict');
     await page.getByRole('button',{name:'Back to board',exact:true}).click();
     await page.getByRole('tab',{name:'All people',exact:true}).click();
     await page.locator('.card-board-card').filter({hasText:'Four people'}).getByRole('button',{name:'Assign person and colour',exact:true}).click();
+    await page.getByRole('heading',{name:'Assign people and colours',exact:true}).waitFor();
+    await expect(page.getByLabel('Choose an assigned person').first()).toBeVisible();
     const peopleOptions=await page.getByLabel('Choose an assigned person').first().locator('option').evaluateAll(options=>options.map(option=>option.value));
     const normalizedPeople=peopleOptions.map(name=>name.toLowerCase());
     assert.ok(normalizedPeople.includes('jo')&&normalizedPeople.includes('riley')&&normalizedPeople.includes('killian'),JSON.stringify(peopleOptions));
